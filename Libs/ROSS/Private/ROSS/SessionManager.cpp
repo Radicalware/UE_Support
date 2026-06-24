@@ -1,20 +1,34 @@
 #include "ROSS/SessionManager.h"
+
+// -----------------------------------------------
+// Libs
+#include "ROSS/Ross.h"
+#include "Menu/MainMenu.h"
+#include "Access/General.h"
+#include "ROSS/OSS/RpAuth.h"
+#include "ROSS/OSS/RpSessions.h"
+#include "ROSS/Util/NetResult.h"
+// -----------------------------------------------
+// Engine
+#include "Blueprint/UserWidget.h"
+#include "Components/TextBlock.h"
+#include "Interfaces/OnlineSessionInterface.h"
+#include "EngineUtils.h"
+#include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerState.h"
+#include "Delegates/DelegateSignatureImpl.inl"
+
+// -----------------------------------------------
+// Online
+#include "Online/OnlineSessionNames.h"
+#include "OnlineSessionSettings.h"
+#include "OnlineSubsystemTypes.h"
+#include "steam/steam_gameserver.h"
+#include "Misc/ConfigCacheIni.h"
 #include "OnlineSubsystem.h"
 #include "OnlineSubsystemSteam.h"
 #include "OnlineSubsystemUtils.h"
-#include "Interfaces/OnlineSessionInterface.h"
-#include "EngineUtils.h"
-#include "steam/steam_gameserver.h"
-#include "Misc/ConfigCacheIni.h"
-#include "ROSS/ROSS.h"
-#include "ROSS/Util/NetResult.h"
-#include "ROSS/OSS/RpAuth.h"
-#include "ROSS/OSS/RpSessions.h"
-#include "Access/Tracker.h"
-#include "GameFramework/GameModeBase.h"
-#include "Misc/ConfigCacheIni.h"
-
+// -----------------------------------------------
 ASessionManager::ASessionManager()
 {
     PrintStart();
@@ -44,16 +58,25 @@ void ASessionManager::Tick(float DeltaSeconds)
 void ASessionManager::SetServerArguments()
 {
     PrintStart();
-    if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer){
-        throw BBB("Not a Dedicated Server")
+    if (GetWorld()->GetNetMode() == ENetMode::NM_DedicatedServer){
+        Print("Is a Dedicated Server");
+        bUsingDedicatedServer = true;
+    }
+    else {
+        Print("Not a Dedicated Server");
+        bUsingDedicatedServer = false;
     }
 
+    FString MaxPlayersStr;
+    MaxPlayers = FParse::Value(FCommandLine::Get(), TEXT("MaxPlayers="), MaxPlayersStr);
     int32 LnServerPort = 7777;  // defualt
     FParse::Value(FCommandLine::Get(), TEXT("-port="), LnServerPort);
     SetPort(LnServerPort);
     auto LsSessionName = FString(TEXT("GameSession_")) + FString::FromInt(LnServerPort);
     SetSessionName(LsSessionName);
-    SetSessionSettings();
+    SetSessionSettings(GetWorld());
+    ensure(SessionName == SsSessionName);
+    ensure(MaxPlayers > 0);
 }
 
 void ASessionManager::SetupRoss()
@@ -78,17 +101,16 @@ void ASessionManager::InitOptions(const FString& Options)
         SetPort(LnServerPort);
         auto LsSessionName = FString(TEXT("GameSession_")) + FString::FromInt(LnServerPort);
         SetSessionName(LsSessionName);
-        SetSessionSettings();
-
+        SetSessionSettings(GetWorld());
         Print("InitOptions: Now  SessionName: ", SsSessionName);
     }
 }
 
-void ASessionManager::SetSessionSettings()
+void ASessionManager::SetSessionSettings(UWorld* FoWorldPtr)
 {
     PrintStart();
 
-    GET(IOSS, Online::GetSubsystem(GetWorld()));
+    GET(IOSS, Online::GetSubsystem(FoWorldPtr));
     GET(ISession, IOSS.GetSessionInterface());
     if (ISession.GetNamedSession(GetSessionName()) != nullptr)
     {
@@ -96,51 +118,70 @@ void ASessionManager::SetSessionSettings()
         ISession.DestroySession(GetSessionName());
     }
 
-    FString MaxPlayersStr;
-    FParse::Value(FCommandLine::Get(), TEXT("MaxPlayers="), MaxPlayersStr);
-    MaxPlayers = XF::StringToInt(MaxPlayersStr);
-    ensure(MaxPlayers > 0);
+    int32 LnMaxPlayers = 4;
+    if (bUsingDedicatedServer) 
+    {
+        FString MaxPlayersStr;
+        FParse::Value(FCommandLine::Get(), TEXT("MaxPlayers="), MaxPlayersStr);
+        LnMaxPlayers = XF::StringToInt(MaxPlayersStr);
+        ensure(LnMaxPlayers > 0);
+        // MaxPlayers = LnMaxPlayers; // static function
+    }
 
     const bool bPersistentWorld = FParse::Param(FCommandLine::Get(), TEXT("PersistentWorld"));
     Print("Persistent World: ", bPersistentWorld);
-    MoSessionSettings = FOnlineSessionSettings();
-    MoSessionSettings.NumPublicConnections = MaxPlayers;
-    MoSessionSettings.NumPrivateConnections = 0; // invite only
+    SoSettings = FRossSessionSettings();
+    SoSettings.NumPublicConnections = LnMaxPlayers;
+    SoSettings.NumPrivateConnections = 0; // invite only
 
-    MoSessionSettings.bUsesStats = false; // TODO: switch to true for database updates
+    SoSettings.bUsesStats = false; // TODO: switch to true for database updates
 
     if (bPersistentWorld)
     {
-        MoSessionSettings.bAllowJoinInProgress = true;
-        MoSessionSettings.bAllowInvites = true;
-        MoSessionSettings.bShouldAdvertise = true;
+        SoSettings.bAllowJoinInProgress = true;
+        SoSettings.bAllowInvites = true;
+        SoSettings.bShouldAdvertise = true;
     }
     else { // MTT, Sit-N-Go, Spins
-        MoSessionSettings.bAllowJoinInProgress = false; // Good prevent mid-match joins
-        MoSessionSettings.bAllowInvites = false; // Good keep control centralized
-        MoSessionSettings.bShouldAdvertise = true;  // Must be true for session to show up in searches (lobby mode)
+        SoSettings.bAllowJoinInProgress = false; // Good prevent mid-match joins
+        SoSettings.bAllowInvites = false; // Good keep control centralized
+        SoSettings.bShouldAdvertise = true;  // Must be true for session to show up in searches (lobby mode)
     }
 
-    MoSessionSettings.bIsDedicated = true;
-    MoSessionSettings.bIsLANMatch = false;
-    MoSessionSettings.bUsesPresence = false; // False for Dedicated Servers b/c you can't show you are hosting if no player hosts
-    MoSessionSettings.bUseLobbiesIfAvailable = false; // Use server browser path, not lobbies, for dedicated servers
+    if (bUsingDedicatedServer) 
+    {
+        SoSettings.bIsDedicated = true;
+        SoSettings.bIsLANMatch = false;
+        SoSettings.bUsesPresence = false; // False for Dedicated Servers b/c you can't show you are hosting if no player hosts
+        SoSettings.bUseLobbiesIfAvailable = false; // Use server browser path, not lobbies, for dedicated servers
+    }
+    else
+    {
+        SoSettings.bIsDedicated = false;
+        SoSettings.bIsLANMatch = true;
+        SoSettings.bUsesPresence = true;
+        SoSettings.bUseLobbiesIfAvailable = true;
 
-    MoSessionSettings.bAllowJoinViaPresence = true; // so you can join friends
-    MoSessionSettings.bAllowJoinViaPresenceFriendsOnly = false; // so you can ONLY join friends
-    MoSessionSettings.bAntiCheatProtected = true;
+    }
 
-    MoSessionSettings.BuildUniqueId = FMath::RandRange(1, INT32_MAX); // 0 means non-searchable
+    SoSettings.bAllowJoinViaPresence = true; // so you can join friends
+    SoSettings.bAllowJoinViaPresenceFriendsOnly = false; // so you can ONLY join friends
+    SoSettings.bAntiCheatProtected = true;
+
+    SoSettings.BuildUniqueId = FMath::RandRange(1, INT32_MAX); // 0 means non-searchable
     // TODO: ensure we don't accidentally get the same value 2x for the same server
 
-    ensure(SessionName == SsSessionName);
-    Print("Set SessionName: ", SessionName);
+    //ensure(SessionName == SsSessionName);
+    //Print("Set SessionName: ", SessionName);
 
-    SoGameConfig.SetFromCLI();
-
-    MoSessionSettings.Set(TEXT("PORT"),     (int32)SoGameConfig.GetGamePort(), EOnlineDataAdvertisementType::ViaOnlineService);
-    MoSessionSettings.Set(TEXT("MAP"),      SoGameConfig.GetMap(),      EOnlineDataAdvertisementType::ViaOnlineService);
-    MoSessionSettings.Set(TEXT("GAMEMODE"), SoGameConfig.GetMode(),     EOnlineDataAdvertisementType::ViaOnlineService);
+    SoSettings.InitUniqueBuildID();
+    if (bUsingDedicatedServer) {
+        SoSettings.MoGameConfig.SetMapModeFromCLI();
+    }
+    else if(SoSettings.MoGameConfig.BxHasValues() == false) {
+        PrintW("No MAP & MODE values set");
+        throw BBB("No MAP & MODE values set - use -map=MAPNAME -mode=MODENAME");
+    }
 }
 
 void ASessionManager::RegisterServer()
@@ -194,10 +235,10 @@ void ASessionManager::RegisterSteamServer()
     const uint64 SteamID = SteamGameServer()->GetSteamID().ConvertToUint64();
 
 
-    FParse::Value(FCommandLine::Get(), TEXT("GameServerQueryPort="), SoSteamConfig.MnQueryPort);
+    FParse::Value(FCommandLine::Get(), TEXT("GameServerQueryPort="), GetSteamConfig().MnQueryPort);
     Print(
-        "Game Port:  ", SoSteamConfig.MnGamePort, " && "
-        "Query Port: ", SoSteamConfig.MnQueryPort
+        "Game Port:  ", GetSteamConfig().MnGamePort, " && "
+        "Query Port: ", GetSteamConfig().MnQueryPort
     )
 
         Print("Before: SteamGameServer: Valid"
@@ -222,9 +263,9 @@ void ASessionManager::RegisterSteamServer()
         //ensure(SoSteamConfig.MnQueryPort == GameServerQueryPort);
 
         ensure(SteamGameServer_Init(
-            SoSteamConfig.unIP,        // 0 = bind to all interfaces (most common)
-            SoSteamConfig.MnGamePort,  // Game Port
-            SoSteamConfig.MnQueryPort, // Query Port
+            GetSteamConfig().unIP,        // 0 = bind to all interfaces (most common)
+            GetSteamConfig().MnGamePort,  // Game Port
+            GetSteamConfig().MnQueryPort, // Query Port
             EServerMode::eServerModeAuthenticationAndSecure,
             "1.0.0.0" // Version string
         ));
@@ -234,13 +275,15 @@ void ASessionManager::RegisterSteamServer()
         SteamGameServer()->SetGameDescription("Hord Game");
         SteamGameServer()->SetDedicatedServer(true);
         SteamGameServer()->SetServerName(XF::FStringToRValChars(SessionName));
-        SteamGameServer()->SetMapName(XF::FStringToRValChars(GetMapName()));
+        SteamGameServer()->SetMapName(XF::FStringToRValChars(GetGameConfig().GetMap()));
         SteamGameServer()->SetMaxPlayerCount(MaxPlayers);
         SteamGameServer()->SetPasswordProtected(false);
         SteamGameServer()->SetRegion("na"); // North America
         SteamGameServer()->SetGameTags("Default,PVE");
-        SteamGameServer()->SetGameData(TCHAR_TO_UTF8(*FString::Printf(TEXT("Mode=%s;Map=%s"), *SoGameConfig.GetMode(), *SoGameConfig.GetMap())));
-        SteamGameServer()->SetKeyValue("PORT", XF::FStringToRValChars(FString::FromInt(SoSteamConfig.MnGamePort)));
+        SteamGameServer()->SetGameData(TCHAR_TO_UTF8(*FString::Printf(TEXT("Mode=%s;Map=%s"), 
+            *GetGameConfig().GetMode(), 
+            *GetGameConfig().GetMap())));
+        SteamGameServer()->SetKeyValue("PORT", XF::FStringToRValChars(FString::FromInt(GetGameConfig().GetGamePort())));
 
         //Print("Waiting for Steam Game Server authentication callback...");
          SteamGameServer()->LogOnAnonymous();
@@ -250,9 +293,9 @@ void ASessionManager::RegisterSteamServer()
         Print("Already logged on - updating server properties");
 
         // Only update dynamic properties
-        SteamGameServer()->SetMapName(XF::FStringToRValChars(GetMapName()));
+        SteamGameServer()->SetMapName(XF::FStringToRValChars(GetGameConfig().GetMap()));
         SteamGameServer()->SetServerName(XF::FStringToRValChars(SessionName));
-        SteamGameServer()->SetKeyValue("PORT", XF::FStringToRValChars(FString::FromInt(SoSteamConfig.MnGamePort)));
+        SteamGameServer()->SetKeyValue("PORT", XF::FStringToRValChars(FString::FromInt(GetGameConfig().GetGamePort())));
         Print("Server updated and advertising");
     }
 #else
@@ -367,7 +410,7 @@ void ASessionManager::OnSteamAuthenticationComplete()
     }
 }
 
-void ASessionManager::CreateSession()
+void ASessionManager::ServerCreateSession()
 {
     PrintStart();
     if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer) {
@@ -421,7 +464,7 @@ void ASessionManager::CreateSession()
     //SoResults.MoCreateSessionPtr = Ross.GetSessions().ExeServerCreateSession(
     //    LoDelegate,
     //    SessionName,
-    //    MoSessionSettings);
+    //    SoSettings);
 
 
     // Use Steam API to create session
@@ -430,13 +473,14 @@ void ASessionManager::CreateSession()
     SeState = EState::StartSession; // Only because this is the last stage for steam
     Print("Slingshot");
     GET(MoTrackSubsystemReady);
-    MoTrackSubsystemReady.Slingshot(GetWorld(), "StartLevel");
+
+    MoTrackSubsystemReady.Slingshot(GetWorld(), "ServerTravelListen");
     bSteamAuthenticated = true;
     // ---------------------------------------------------------------------------------
 
     //if (SteamMatchmaking())
     //{
-    //    ELobbyType lobbyType = MoSessionSettings.bShouldAdvertise ? k_ELobbyTypePublic : k_ELobbyTypePrivate;
+    //    ELobbyType lobbyType = SoSettings.bShouldAdvertise ? k_ELobbyTypePublic : k_ELobbyTypePrivate;
     //    SteamAPICall_t call = SteamMatchmaking()->CreateLobby(lobbyType, MaxPlayers);
     //    if (call != k_uAPICallInvalid)
     //    {
@@ -454,6 +498,36 @@ void ASessionManager::CreateSession()
     //}
 }
 
+void ASessionManager::P2PCreateSession()
+{
+    PrintStart()
+    if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer) {
+        PrintW("Not a client - skipping P2P session creation");
+        return;
+    }
+    GET(Ross);
+
+    SoResults.MoCreateSessionPtr = Ross.GetSessions().ExeServerCreateSession(
+        FOnCreateSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnCreateSessionComplete),
+        SessionName,
+        SoSettings);
+}
+
+void ASessionManager::CreateSession()
+{
+    PrintStart();
+    SetServerArguments(); // safety one more time && checks
+    if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer)
+        ServerCreateSession();
+    else
+        P2PCreateSession();
+
+    if (SoResults.MoCreateSessionPtr->BxSuccessful())
+        Print("P2P Session created successfully: ", SessionName)
+    else
+        PrintW("Failed to create P2P session: ", SessionName)
+}
+
 void ASessionManager::OnCreateSessionComplete(FName InSessionName, bool bWasSuccessful)
 {
     PrintStart();
@@ -469,7 +543,7 @@ void ASessionManager::OnCreateSessionComplete(FName InSessionName, bool bWasSucc
     }
 }
 
-void ASessionManager::StartSession()
+void ASessionManager::ServerStartSession()
 {
     PrintStart();
     if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer) {
@@ -497,13 +571,58 @@ void ASessionManager::StartSession()
     RossPtr = AROSS::GetRossPtr();
     GET(Ross);
 
-    auto LoDelegate = FOnStartSessionCompleteDelegate();
-    LoDelegate.BindUObject(this, &ASessionManager::OnStartSessionComplete);
+    SoResults.MoStartSessionPtr = Ross.GetSessions().ExeServerStartSession(
+        FOnStartSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnStartSessionComplete),
+        SessionName,
+        SoSettings);
+}
+
+void ASessionManager::P2PStartSession()
+{
+    PrintStart();
+    if (GetWorld()->GetNetMode() == ENetMode::NM_DedicatedServer) {
+        PrintW("Should be a Client NOT a dedicated server in P2P Sessions");
+        return;
+    }
+    if (SeState != EState::CreateSession) {
+        return;
+    }
+    ensure(SsSessionName == SessionName);
+
+    if (GetWorld()
+        && AROSS::InitializeReady(GetWorld())
+        && SteamUser()->BLoggedOn())
+    {
+        SetupRoss();
+    }
+    else {
+        PrintW("Not ready for Start Session");
+        Print("Slingshot");
+        GET(MoTrackSubsystemReady);
+        MoTrackSubsystemReady.Slingshot(GetWorld(), "StartSession");
+        return;
+    }
+    RossPtr = AROSS::GetRossPtr();
+    GET(Ross);
 
     SoResults.MoStartSessionPtr = Ross.GetSessions().ExeServerStartSession(
-        LoDelegate,
+        FOnStartSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnStartSessionComplete),
         SessionName,
-        MoSessionSettings);
+        SoSettings);
+}
+
+void ASessionManager::StartSession()
+{
+    PrintStart();
+    if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer)
+        ServerStartSession();
+    else
+        P2PStartSession();
+
+    if (SoResults.MoStartSessionPtr->BxSuccessful())
+        Print("P2P Session started successfully: ", SessionName)
+    else
+        PrintW("Failed to start P2P session: ", SessionName)
 }
 
 void ASessionManager::OnStartSessionComplete(FName InSessionName, bool bWasSuccessful)
@@ -513,21 +632,21 @@ void ASessionManager::OnStartSessionComplete(FName InSessionName, bool bWasSucce
     if (bWasSuccessful) {
         Print("Session ", InSessionName, " started successfully.");
         SeState = EState::StartSession;
-        //StartLevel();
+        // ServerTravelListen();
     }
     else {
         PrintW("Failed to start session ", InSessionName, ".");
-        //StartSession();
+        // ServerTravelListen();
     }
 }
 
-void ASessionManager::StartLevel()
+void ASessionManager::ServerTravelListen(const FString& FsMapPath, const FString& FsModePath)
 {
     PrintStart()
     if (SeState != EState::StartSession) {
         return;
     }
-    SeState = EState::StartLevel;
+    SeState = EState::ServerTravelListen;
     ensure(SsSessionName == SessionName);
 
     if (AGameModeBase* GM = GetWorld()->GetAuthGameMode())
@@ -536,21 +655,57 @@ void ASessionManager::StartLevel()
         PrintW("No Seamless Travel");
     }
 
-    SoGameConfig.SetMapPath("/Game/Levels/Maps/PuzzelPlatforms");
-    SoGameConfig.SetModePath("/Game/Levels/Modes/BpDefaultGameMode.BpDefaultGameMode_C");
+    if(FsMapPath.IsEmpty() == false)
+        GetGameConfig().SetMapPath(FsMapPath);
+    if (FsModePath.IsEmpty() == false)
+        GetGameConfig().SetModePath(FsModePath);
 
     GET(LoWorld, GetWorld());
-    auto LsPort = FString::FromInt(SoGameConfig.MnGamePort);
-    auto LsTravel = FString::Printf(TEXT("%s?game=%s"), *SoGameConfig.GetMapPath(), *SoGameConfig.GetModePath());
+    auto LsPort = FString::FromInt(GetGameConfig().MnGamePort);
+    auto LsTravel = FString::Printf(TEXT("%s?listen?game=%s"), *GetGameConfig().GetMapPath(), *GetGameConfig().GetModePath());
     if (LsTravel == SsTravel)
         return;
     SsTravel = LsTravel;
-    Print("Server Travel...\n Map: ", SoGameConfig.GetMapPath(), "\n GameMode: ", SoGameConfig.GetModePath(), "\n Port: ", SoGameConfig.GetGamePort(), "\n");
+    Print("Server Travel...\n Map: ", GetGameConfig().GetMapPath(), "\n GameMode: ", GetGameConfig().GetModePath(), "\n Port: ", GetGameConfig().GetGamePort(), "\n");
     Print("SsTravel = ", SsTravel);
     LoWorld.ServerTravel(SsTravel);
     Print("Server Travel called with URL: ", SsTravel);
 
     /// also, make sure you check your query/game ports match your ini file with your CLI input with an ensure()
+}
+
+void ASessionManager::ServerTravelJoin(const FString& FsMapPath, const FString& FsModePath)
+{
+    PrintStart()
+        if (SeState != EState::StartSession) {
+            return;
+        }
+    SeState = EState::ServerTravelListen;
+    ensure(SsSessionName == SessionName);
+
+    if (AGameModeBase* GM = GetWorld()->GetAuthGameMode())
+        GM->bUseSeamlessTravel = true;
+    else {
+        PrintW("No Seamless Travel");
+    }
+
+    if (FsMapPath.IsEmpty() == false)
+        GetGameConfig().SetMapPath(FsMapPath);
+    if (FsModePath.IsEmpty() == false)
+        GetGameConfig().SetModePath(FsModePath);
+
+    GET(LoWorld, GetWorld());
+    GET(Ross);
+    auto LsPort = FString::FromInt(GetGameConfig().MnGamePort);
+    auto LsTravel = FString::Printf(TEXT("%s?game=%s"), *GetGameConfig().GetMapPath(), *GetGameConfig().GetModePath());
+    if (LsTravel == SsTravel)
+        return;
+    SsTravel = LsTravel;
+    Print("Client Travel...\n Map: ", GetGameConfig().GetMapPath(), "\n GameMode: ", GetGameConfig().GetModePath(), "\n Port: ", GetGameConfig().GetGamePort(), "\n");
+    Print("SsTravel = ", SsTravel);
+
+    PrintW("Client Travel not yet implemented");
+    //LoWorld.ClientTravel(SsTravel);
 }
 
 void ASessionManager::OnAutoLoginComplete(int32 LocalUserNum, bool bWasSuccessful, const FString& Error)
@@ -704,8 +859,8 @@ void ASessionManager::Restart()
 {
     PrintStart()
     GET(World, GetWorld());
-    PrintW("\n\nMap: ", SoGameConfig.GetMapPath(), "\n GameMode: ", SoGameConfig.GetModePath(), "\n Port: ", SoGameConfig.GetGamePort(), "\n");
-    FString TravelURL = FString::Printf(TEXT("%s?listen&Game=%s"), *SoGameConfig.GetMapPath(), *SoGameConfig.GetModePath());
+    PrintW("\n\nMap: ", GetGameConfig().GetMapPath(), "\n GameMode: ", GetGameConfig().GetModePath(), "\n Port: ", GetGameConfig().GetGamePort(), "\n");
+    FString TravelURL = FString::Printf(TEXT("%s?listen&Game=%s"), *GetGameConfig().GetMapPath(), *GetGameConfig().GetModePath());
     World.ServerTravel(TravelURL);
 }
 
@@ -722,15 +877,6 @@ int32 ASessionManager::GetSteamAppID() const
     ensure(LnSteamAppID != -1);
     Print("Registering Steam App ID: ", LnSteamAppID);
     return LnSteamAppID;
-}
-
-FString ASessionManager::GetMapName() const
-{
-    PrintStart();
-    FString LsMap;
-    MoSessionSettings.Get(TEXT("MAP"), LsMap);
-    Print("Registering Map: ", LsMap);
-    return LsMap;
 }
 
 void ASessionManager::RegisterServerFailed()
@@ -775,6 +921,15 @@ void ASessionManager::OnEndSessionComplete(FName InSessionName, bool bWasSuccess
     PrintStart();
     PrintW("Todo: Add to Database Logs and for MTT, give Payouts");
 }
+
+
+void ASessionManager::SearchSessions()
+{
+    PrintStart();
+    GET(Ross);
+    Ross.GetSessions().SearchSessions();
+}
+
 
 int32 ASessionManager::GetNumPlayers() const
 {
@@ -872,7 +1027,7 @@ void ASessionManager::OnLobbyCreated(LobbyCreated_t* pCallback)
         // Set lobby data
         SteamMatchmaking()->SetLobbyData(lobbyId, "SessionName", TCHAR_TO_UTF8(*SessionName.ToString()));
         SteamMatchmaking()->SetLobbyData(lobbyId, "MaxPlayers",  TCHAR_TO_UTF8(*FString::FromInt(MaxPlayers)));
-        // Add more data as needed from MoSessionSettings
+        // Add more data as needed from SoSettings
         SeState = EState::CreateSession;
         // Proceed to start session or notify
     }
@@ -884,41 +1039,9 @@ void ASessionManager::OnLobbyCreated(LobbyCreated_t* pCallback)
 
 // Static member definitions
 bool ASessionManager::bSteamAuthenticated = false;
-ASessionManager::SteamConfig ASessionManager::SoSteamConfig;
-ASessionManager::GameConfig ASessionManager::SoGameConfig;
 FName ASessionManager::SsSessionName = "Unset";
+FRossSessionSettings ASessionManager::SoSettings;
 TSet<FUniqueNetIdRepl> ASessionManager::SvSessionPlayers;
 TMap<FUniqueNetIdRepl, APlayerController*> ASessionManager::SmAdmins;
 FString ASessionManager::SsTravel;
 
-void ASessionManager::GameConfig::SetFromCLI()
-{
-    PrintStart();
-    uint32 LnPort = 7777;
-    FParse::Value(FCommandLine::Get(), TEXT("port="),     SoGameConfig.MnGamePort);
-    FParse::Value(FCommandLine::Get(), TEXT("MapPath="),  SoGameConfig.MsMapPath);
-    FParse::Value(FCommandLine::Get(), TEXT("ModePath="), SoGameConfig.MsModePath);
-
-    SetMapPath(SoGameConfig.MsMapPath);
-    SetModePath(SoGameConfig.MsModePath);
-}
-
-void ASessionManager::GameConfig::SetMapPath(const FString& FsMapPath)
-{
-    PrintStart();
-    The.MsMapPath = FsMapPath;
-    The.MsMap = FPackageName::GetShortName(FsMapPath);
-    ensure(!SoGameConfig.MsMapPath.IsEmpty());
-    ensure(!SoGameConfig.MsMap.IsEmpty());
-    ensure(FPackageName::DoesPackageExist(SoGameConfig.MsMapPath));
-}
-
-void ASessionManager::GameConfig::SetModePath(const FString& FsModePath)
-{
-    PrintStart();
-    The.MsModePath = FsModePath;
-    The.MsMode = FPackageName::GetShortName(FsModePath);
-    ensure(!SoGameConfig.MsModePath.IsEmpty());
-    ensure(!SoGameConfig.MsMode.IsEmpty());
-    ensure(XF::BxGameModeExists(SoGameConfig.MsModePath));
-}

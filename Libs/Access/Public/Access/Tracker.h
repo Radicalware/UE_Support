@@ -49,19 +49,19 @@ public:
     void StartLoop(UWorld* WorldPtr, const char* FunctionName, const uint32 LineMacro);
 
     template <typename FF, typename... RR>
-    INL void StartLoop(UWorld* WorldPtr, const char* FunctionName, const uint32 LineMacro, const FF&& Frist, const RR&& ...Rest);
+    INL void StartLoop(UWorld* WorldPtr, const char* FunctionName, const uint32 LineMacro, FF&& Frist, RR&& ...Rest);
 
     // Note: Boomerange is intentional while StartLoop is called from exceptions
     void Slingshot(UWorld* WorldPtr, const char* FunctionName);
 
     template <typename FF, typename... RR>
-    INL void Slingshot(UWorld* WorldPtr, const char* FunctionName, const FF&& Frist, const RR&& ...Rest);
+    INL void Slingshot(UWorld* WorldPtr, const char* FunctionName, FF&& Frist, RR&& ...Rest);
 
     template <typename FF, typename... RR>
-    INL void static StaticSlingshot(UWorld* WorldPtr, const FF&& Frist, const RR&& ...Rest);
+    INL void static StaticSlingshot(UWorld* WorldPtr, FF&& Frist, RR&& ...Rest);
 
     template <typename FF, typename... RR>
-    INL static void DelayAction(UWorld* WorldPtr, UObject* User, const char* FunctionName, float DelaySecs, const FF&& Frist, const RR&& ...Rest);
+    INL static void DelayAction(UWorld* WorldPtr, UObject* User, const char* FunctionName, float DelaySecs, FF&& Frist, RR&& ...Rest);
     
     static void DelayAction(UWorld* WorldPtr, UObject* User, const char* FunctionName, float DelaySecs = 0.1);
 
@@ -70,9 +70,9 @@ public:
 };
 
 template<typename FF, typename ...RR>
-INL void ATracker::StartLoop(UWorld* WorldPtr, const char* FunctionName, const uint32 LineMacro, const FF&& Frist, const RR&& ...Rest)
+INL void ATracker::StartLoop(UWorld* WorldPtr, const char* FunctionName, const uint32 LineMacro, FF&& Frist, RR&& ...Rest)
 {
-    GetRef(World, WorldPtr, void());
+    GET(LoWorld, WorldPtr, void());
     NullEnsure(User, void());
     if (!ensure(strlen(FunctionName) != 0))
         return;
@@ -81,14 +81,14 @@ INL void ATracker::StartLoop(UWorld* WorldPtr, const char* FunctionName, const u
     Delegate.BindUFunction(User, LsFunctionName.c_str(), Frist, Rest...);
     if (LoopInSeconds < FirstDelay)
         LoopInSeconds = FirstDelay;
-    World.GetTimerManager().ClearTimer(MoHandle);
-    World.GetTimerManager().SetTimer(MoHandle, Delegate, LoopInSeconds, bRepeateLoop, FirstDelay);
+    LoWorld.GetTimerManager().ClearTimer(MoHandle);
+    LoWorld.GetTimerManager().SetTimer(MoHandle, Delegate, LoopInSeconds, bRepeateLoop, FirstDelay);
 }
 
 template<typename FF, typename ...RR>
-INL void ATracker::Slingshot(UWorld* WorldPtr, const char* FunctionName, const FF&& Frist, const RR&& ...Rest)
+INL void ATracker::Slingshot(UWorld* WorldPtr, const char* FunctionName, FF&& Frist, RR&& ...Rest)
 {
-    GetRef(World, WorldPtr, void());
+    GET(LoWorld, WorldPtr, void());
     NullEnsure(User, void());
     if (!ensure(strlen(FunctionName) != 0))
         return;
@@ -96,23 +96,23 @@ INL void ATracker::Slingshot(UWorld* WorldPtr, const char* FunctionName, const F
     Delegate.BindUFunction(User, LsFunctionName.c_str(), Frist, Rest...);
     if (LoopInSeconds < FirstDelay)
         LoopInSeconds = FirstDelay;
-    World.GetTimerManager().ClearTimer(MoHandle);
-    World.GetTimerManager().SetTimer(MoHandle, Delegate, LoopInSeconds, false); 
+    LoWorld.GetTimerManager().ClearTimer(MoHandle);
+    LoWorld.GetTimerManager().SetTimer(MoHandle, Delegate, LoopInSeconds, false);
 }
 
 template<typename FF, typename ...RR>
-INL void ATracker::StaticSlingshot(UWorld* WorldPtr, const FF&& Frist, const RR&& ...Rest)
+INL void ATracker::StaticSlingshot(UWorld* WorldPtr, FF&& Frist, RR&& ...Rest)
 {
-    GetRef(World, WorldPtr, void());
+    GET(LoWorld, WorldPtr, void());
     SoDelegate = FTimerDelegate::CreateStatic(std::forward<FF>(Frist), std::forward<RR>(Rest)...);
-    World.GetTimerManager().ClearTimer(SoHandle);
-    World.GetTimerManager().SetTimer(SoHandle, SoDelegate, 1.0f, false); 
+    LoWorld.GetTimerManager().ClearTimer(SoHandle);
+    LoWorld.GetTimerManager().SetTimer(SoHandle, SoDelegate, 1.0f, false);
 }
 
 template<typename FF, typename ...RR>
-INL void ATracker::DelayAction(UWorld* WorldPtr, UObject* User, const char* FunctionName, float DelaySecs, const FF&& Frist, const RR&& ...Rest)
+INL void ATracker::DelayAction(UWorld* WorldPtr, UObject* User, const char* FunctionName, float DelaySecs, FF&& Frist, RR&& ...Rest)
 {
-    GetRef(World, WorldPtr, void());
+    GET(LoWorld, WorldPtr, void());
     NullEnsure(User, void());
     if (!ensure(strlen(FunctionName) != 0))
         return;
@@ -120,6 +120,6 @@ INL void ATracker::DelayAction(UWorld* WorldPtr, UObject* User, const char* Func
     FTrace Trace;
     auto LsFunctionName = std::regex_replace(FunctionName, MoRegexClassAndColons, "");
     Trace.Delegate.BindUFunction(User, LsFunctionName.c_str(), std::forward<FF>(Frist), std::forward<RR>(Rest)...);
-    World.GetTimerManager().SetTimer(Trace.Handle, Trace.Delegate, DelaySecs, false);
+    LoWorld.GetTimerManager().SetTimer(Trace.Handle, Trace.Delegate, DelaySecs, false);
 }
 

@@ -1,4 +1,4 @@
-# Joel Leagues under the Apache v2 Licence
+# Copywrite by Joel Leagues with the Apache v2 Licence
 
 param (
     [string] $Map,
@@ -9,8 +9,9 @@ param (
     [switch] $Second,
     [switch] $Third,
 
-    [switch] $Game,
+    [switch] $Client,
     [switch] $Server,
+    [switch] $P2P,
     [switch] $Editor,
     [switch] $Lite,
 
@@ -31,8 +32,9 @@ UServer.ps1
     -IpAddress = Give an Server IP   (Default = 127.0.0.1)
     -Port      = Give an Server Port (Default = 7777)
 
-    -Game      = start as a client
+    -Client    = start as a client
     -Server    = start as a server
+    -P2P       = start as a P2P
     -Editor    = Open the UE5 Editor 
     -Lite      = Runs using the Editor Lite build & not a Binary 
 
@@ -61,17 +63,20 @@ if($Third){
 }
 
 enum Mode {
-    Game
+    Client
     Server
+    P2P
     Editor
     None
 }
 
 $LeMode = [Mode]::None
-if($Game){
-    $LeMode = [Mode]::Game
+if($Client){
+    $LeMode = [Mode]::Client
 }elseif($Server){
     $LeMode = [Mode]::Server
+}elseif($P2P){
+    $LeMode = [Mode]::P2P
 }elseif($Editor){
     $LeMode = [Mode]::Editor
 }else{
@@ -95,13 +100,15 @@ class Core
     [string]  $MsNoSteam;
     [string]  $MsGameName;
     [string]  $MsLog;
+    [bool]    $MbHasDisplay;
 
     Core([bool] $FeLite, [Mode] $FeMode, [int] $FnDisplay, [bool] $FbNoSteam, [bool] $FbLog
     ){
         $This.MbLite = $FeLite
         $This.MeMode = $FeMode
         $This.MsMode = "-" + $FeMode.ToString()
-        if($This.MeMode -eq [Mode]::Game -or $This.MeMode -eq [Mode]::Editor) # The "-eq $true" is required
+        $This.MbHasDisplay = $This.MeMode -eq [Mode]::Game -or $This.MeMode -eq [Mode]::P2P -or $This.MeMode -eq [Mode]::Editor
+        if($This.MbHasDisplay)
         {
             if($FnDisplay -eq 2){
                 $This.MsDisplay = "-WinX=1920 -WinY=0 -SAVEWINPOS=1"
@@ -221,11 +228,16 @@ class Core
     [string] CommandEditorStr([string] $FsMap, [string] $IpAddress)
     {
         $LsCommandStr = ""
-        if($This.MeMode -eq [Mode]::Server){
+        if($This.MeMode -eq [Mode]::Client){
+            Write-Host "Warning: this is not likely to work" -ForegroundColor Yellow
+            $LsCommandStr = $This.GetClientEditorCMD($This.GetUMapPath($FsMap), $IpAddress)
+        }
+        elseif($This.MeMode -eq [Mode]::Server){
+            Write-Host "Warning: this is not likely to work" -ForegroundColor Yellow
             $LsCommandStr = $This.GetServerEditorCMD($This.GetLevelPath($FsMap))
         }
-        else{
-            $LsCommandStr = $This.GetClientEditorCMD($This.GetUMapPath($FsMap), $IpAddress)
+        elseif($This.MeMode -eq [Mode]::P2P){
+            throw "Not yet developed a P2P for PIE"
         }
         return $LsCommandStr;
     }
@@ -234,6 +246,31 @@ class Core
     {
         # $LsBinary = ".\Binaries\Win64\{0}Server-Win64-DebugGame.exe" -f $This.MsGameName
         $LsBinary = ".\Binaries\Win64\{0}Server.exe" -f $This.MsGameName
+        $LsPort = "-port=" + [Core]::SsPort
+        $LvExecution = @()
+        if($FsMap.Length -gt 0)
+        {
+            #$ListenMap = $FsMap + '?' + "Listen" # no ?Listen on a server, it's implied
+            $LvExecution = @(
+                $LsBinary,
+                $FsMap,
+                $LsPort
+            )
+        }else{
+            $LvExecution = @(
+                $LsBinary,
+                $LsPort
+            )
+        }
+
+        $LvExecution += [Core]::SvServerArgs
+        $LvExecution += [Core]::SvDebugArgs
+        return [Core]::JoinWithSpaces($LvExecution);
+    }
+
+    [string] GetP2PDebugCMD([string] $FsMap)
+    {
+        $LsBinary = ".\Binaries\Win64\{0}.exe" -f $This.MsGameName
         $LsPort = "-port=" + [Core]::SsPort
         $LvExecution = @()
         if($FsMap.Length -gt 0)
@@ -274,12 +311,16 @@ class Core
     [string] CommandDebugStr([string] $FsMap, [string] $IpAddress)
     {
         $LsCommandStr = ""
-        if($This.MeMode -eq [Mode]::Server){
-            $LsCommandStr = $This.GetServerDebugCMD($This.GetLevelPath($FsMap))
-        }
-        else{
+        if($This.MeMode -eq [Mode]::Client){
             $LsCommandStr = $This.GetClientDebugCMD($This.GetUMapPath($FsMap), $IpAddress)
         }
+        elseif($This.MeMode -eq [Mode]::Server){
+            $LsCommandStr = $This.GetServerDebugCMD($This.GetLevelPath($FsMap))
+        }
+        elseif($This.MeMode -eq [Mode]::P2P){
+            $LsCommandStr = $This.GetP2PDebugCMD($This.GetLevelPath($FsMap))
+        }
+
         return $LsCommandStr;
     }
 
@@ -291,6 +332,8 @@ class Core
         return $This.CommandDebugStr($Map, $IpAddress);
     }
 }
+
+CopySteamAppID.ps1
 
 $core = [Core]::new($Lite, $LeMode, $LnDisplay, $NoSteam, $Log);
 

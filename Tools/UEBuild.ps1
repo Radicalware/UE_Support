@@ -10,6 +10,7 @@ param(
     [switch]$UnrealTool,
     [switch]$MSBuild,
     [switch]$BuildBat,
+    [switch]$RunUAT,
 
     [switch]$OnlyPrint
 )
@@ -36,6 +37,7 @@ enum BuildMethod
     UnrealTool = 2;
     MSBuild = 3;
     BuildBat = 4;
+    RunUAT = 5
 }
 
 [Flags()]
@@ -53,6 +55,7 @@ class Option
     [bool] $UnrealTool  
     [bool] $MSBuild
     [bool] $BuildBat
+    [bool] $RunUAT
     [bool] $CoreOnly
     [BuildMethod]  $MeBuild  = [BuildMethod]::None
     [TargetMethod] $MeTarget = [TargetMethod]::None
@@ -62,6 +65,7 @@ $LoOption.DotNet = $DotNet
 $LoOption.UnrealTool = $UnrealTool
 $LoOption.MSBuild = $MSBuild
 $LoOption.BuildBat = $BuildBat
+$LoOption.RunUAT = $RunUAT
 $LoOption.CoreOnly = $CoreOnly
 
 if($DotNet){
@@ -84,6 +88,12 @@ if($BuildBat){
         throw "Build Method Already Set"
     }
     $LoOption.MeBuild = [BuildMethod]::BuildBat;
+}
+if($RunUAT){
+    if($LoOption.MeBuild -ne [BuildMethod]::None){
+        throw "Build Method Already Set"
+    }
+    $LoOption.MeBuild = [BuildMethod]::RunUAT;
 }
 # ----
 if($Editor){
@@ -111,6 +121,7 @@ if ($LoOption.MeBuild -eq [BuildMethod]::None) {
     Write-Host "  -UnrealTool : Build with Unreal Tool"
     Write-Host "  -MSBuild    : Build with MSBuild"
     Write-Host "  -BuildBat   : Build using BuildBat"
+    Write-Host "  -RunUAT     : Build using BuildBat"
     Write-Host "  -OnlyPrint  : Only Print, No Execute"
     exit 1
 }
@@ -119,6 +130,7 @@ class Core
 {
     static[string] $SsEnginePath   = "D:\UE\Engines\UnrealEngine"
     static[string] $SsBuildBat     = "D:\UE\Engines\UnrealEngine\Engine\Build\BatchFiles\Build.bat"
+    static[string] $SsRunUATBat    = "D:\UE\Engines\UnrealEngine\Engine\Build\BatchFiles\RunUAT.bat"
     static[string] $SsBuildToolEXE = "D:\UE\Engines\UnrealEngine\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.exe"
     static[string] $SsBuildToolDLL = "D:\UE\Engines\UnrealEngine\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll"
     static[string] $SsMSBuild   = "MSBuild.exe"
@@ -562,7 +574,27 @@ class Core
         }
 
         return $LvRetCommands
-    }    
+    }
+
+    
+    [string[]] GetRunUAT()
+    {
+        $LsProjectPath="$($PWD.Path)\$($This.MsProjectName).uproject"
+        # RunUAT.bat BuildCookRun -project="D:\UE\Dev\Apps\TheGame\TheGame.uproject" -noP4 -build -platform=Win64 -clientconfig=Development -target=TheGame
+
+        $LsComand = [Core]::JoinWithSpaces(@(
+            [Core]::SsRunUATBat,
+            "BuildCookRun",
+            "-project=`"$LsProjectPath`"",
+            "-noP4",
+            "-build",
+            "-platform=$([Core]::SsAssembly)",
+            "-clientconfig=Development",
+            "-target=$($This.MsProjectName)"
+        ));
+
+        return $LsComand
+    }
 };
 
 try 
@@ -574,7 +606,18 @@ try
     $LoCore = [Core]::new($LoOption)
     if($LoOption.BuildBat)
     {
-        $LvCommands = $LoCore.GetRunBuildBat() # Development vs Shipping
+        $LvCommands = $LoCore.GetRunBuildBat()
+        foreach($LsCommand in $LvCommands)
+        {
+            [Core]::PrintFullLine()
+            Write-Host "$LsCommand`n";
+            Invoke-Expression $LsCommand
+        }
+        [Core]::PrintFullLine()
+    }
+    elseif($LoOption.RunUAT)
+    {
+        $LvCommands = $LoCore.GetRunUAT()
         foreach($LsCommand in $LvCommands)
         {
             [Core]::PrintFullLine()
@@ -585,7 +628,7 @@ try
     }
     elseif($LoOption.MSBuild)
     {
-        $LvCommands = $LoCore.GetRunMSBuild() # Development vs Shipping
+        $LvCommands = $LoCore.GetRunMSBuild()
         foreach($LsCommand in $LvCommands)
         {
             [Core]::PrintFullLine()
@@ -634,6 +677,8 @@ try
         Invoke-Expression $LsCommand
     }
     [Core]::PrintFullLine()
+    
+    CopySteamAppID.ps1
 }
 catch {
     Write-Host "An error occurred: $_"

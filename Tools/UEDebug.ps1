@@ -1,24 +1,38 @@
-# Ensure COM interop is available
+# Copywrite by Joel Leagues with the Apache v2 Licence
 
 param(
-    [switch]$Game,
-    [switch]$Server
+    [switch]$Client,
+    [switch]$Server,
+    [switch]$P2P
 )
+
+if ($Help -or (-not $Client -and -not $Server -and -not $P2P)) { 
+    Write-Host @"
+    Usage: UEDebug.ps1 [options]
+
+    Options:
+    -Client    Start Unreal Editor with game debugging
+    -Server    Start Unreal Editor with server debugging
+    -P2P       Start Unreal Editor with -P2P debugging
+    -Help      Display this help message
+
+    Examples:
+    UEDebug.ps1 -Client
+    UEDebug.ps1 -Server
+    UEDebug.ps1 -P2P
+"@
+    exit
+}
 
 if ($PSVersionTable.PSEdition -ne 'Desktop' -or $PSVersionTable.PSVersion -ge [Version]'5.2') {
     Write-Host "❌ This script requires Windows PowerShell 5.1 or lower. Exiting..."
     exit
 }
 
-
 $VS2026="18"
 Add-Type -Path "C:\Program Files\Microsoft Visual Studio\$VS2026\Community\Common7\IDE\PublicAssemblies\Microsoft.VisualStudio.Interop.dll"
 
-
 Add-Type -AssemblyName System.Runtime.InteropServices
-
-$LbRunGame   = $Game   -or (-not $Game -and -not $Server)
-$LbRunServer = $Server -or (-not $Game -and -not $Server)
 
 class Core
 {
@@ -58,14 +72,19 @@ try
 {
     $LoCore = [Core]::new()
     $LsCommand = ""
-    if($LbRunServer){
-        Write-Debug "Starting Server..."
-        $LsCommand = $(UELaunch.ps1 -server -NoExec)
+    if($Client){
+        Write-Debug "Starting Game..."
+        $LsCommand = $(UELaunch.ps1 -clent -NoExec -First)
         $LoCore.AttachToVisualStudio($LsCommand)
     }
-    if($LbRunGame){
+    if($Server){
+        Write-Debug "Starting Server..."
+        $LsCommand = $(UELaunch.ps1 -server -NoExec -First)
+        $LoCore.AttachToVisualStudio($LsCommand)
+    }
+    if($P2P){
         Write-Debug "Starting Game..."
-        $LsCommand = $(UELaunch.ps1 -game -NoExec)
+        $LsCommand = $(UELaunch.ps1 -P2P -NoExec -First)
         $LoCore.AttachToVisualStudio($LsCommand)
     }
 } catch {

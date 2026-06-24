@@ -14,7 +14,7 @@
 URpSessions::URpSessions()
 {
     MmSessionSearchResultsPtr = MakeShared<TMap<FString, FOnlineSessionSearchResult>>();
-    MoSessionSearchPtr = MakeShared<FOnlineSessionSearch>();
+    MoSessionResultsPtr = MakeShared<FOnlineSessionSearch>();
 }
 
 IOnlineSessionPtr URpSessions::GetSessionPtr(const IOnlineSubsystem& OSS) const
@@ -38,8 +38,8 @@ TSharedPtr<TNetResult<FOnlineSessionSearch>> URpSessions::GetSessions(FVVDelegat
     auto Result = MakeThreadPtr(TNetResult<FOnlineSessionSearch>);
     Result->SetExternalCallback(FoDelegate);
 
-    MoSessionSearchPtr = MakeShared<FOnlineSessionSearch>();
-    auto& LoSearch = *MoSessionSearchPtr.Get();
+    MoSessionResultsPtr = MakeShared<FOnlineSessionSearch>();
+    auto& LoSearch = *MoSessionResultsPtr.Get();
     LoSearch.QuerySettings.Set(SEARCH_DEDICATED_ONLY, true, EOnlineComparisonOp::Equals);
     LoSearch.bIsLanQuery = false;
     LoSearch.MaxSearchResults = FnMaxResults;
@@ -59,10 +59,10 @@ TSharedPtr<TNetResult<FOnlineSessionSearch>> URpSessions::GetSessions(FVVDelegat
                     return;
                 }
                 else {
-                    Print("Found Session Count: ", MoSessionSearchPtr->SearchResults.Num(), " <> ", Session->GetNumSessions());
+                    Print("Found Session Count: ", MoSessionResultsPtr->SearchResults.Num(), " <> ", Session->GetNumSessions());
                 }
 
-                auto& LoSearch = *this->MoSessionSearchPtr.Get();
+                auto& LoSearch = *this->MoSessionResultsPtr.Get();
                 // Check if this callback is for us.
                 if (LoSearch.SearchState != EOnlineAsyncTaskState::Failed &&
                     LoSearch.SearchState != EOnlineAsyncTaskState::Done)
@@ -87,17 +87,58 @@ TSharedPtr<TNetResult<FOnlineSessionSearch>> URpSessions::GetSessions(FVVDelegat
                     MmSessionSearchResults.Add(SearchResult.GetSessionIdStr(), SearchResult);
                 }
 
-                Result.OnReturnResult(true, MoSessionSearchPtr, TEXT(""));
+                Result.OnReturnResult(true, MoSessionResultsPtr, TEXT(""));
                 Session->ClearOnFindSessionsCompleteDelegate_Handle(*CallbackHandle);
             }));
 
-    if (!Session->FindSessions(this->LocalUserNum, MoSessionSearchPtr.ToSharedRef()))
+    if (!Session->FindSessions(this->LocalUserNum, MoSessionResultsPtr.ToSharedRef()))
     {
         Result->OnReturnResult(false, nullptr, TEXT("FindSessions call failed to start."));
         Session->ClearOnFindSessionsCompleteDelegate_Handle(*CallbackHandle);
     }
 
     return Result;
+}
+
+void URpSessions::SearchSessions(int32 FnMaxResults)
+{
+    The.GetSessions(FVVDelegate::CreateUObject(this, &URpSessions::OnSearchSessionsComplete), FnMaxResults);
+}
+
+void URpSessions::OnSearchSessionsComplete()
+{
+    if (!MoSessionResultsPtr.IsValid())
+    {
+        PrintW("Session search failed");
+        SearchSessions();
+        return;
+    }
+
+    auto& LoSessions = *MoSessionResultsPtr;
+
+    Print("\n",
+        " >> Session Count:    ", LoSessions.SearchResults.Num(), "\n",
+        " >> Session State:    ", EOnlineAsyncTaskState::ToString(LoSessions.SearchState), "\n",
+        " >> MaxSearchResults: ", LoSessions.MaxSearchResults, "\n",
+        " >> bIsLanQuery:      ", LoSessions.bIsLanQuery, "\n",
+        " >> PingBucketSize:   ", LoSessions.PingBucketSize, "\n",
+        " >> PlatformHash:     ", LoSessions.PlatformHash, "\n",
+        " >> TimeoutInSeconds: ", LoSessions.TimeoutInSeconds, "\n"
+    );
+
+    for (auto& LoSearch : LoSessions.SearchResults)
+    {
+        if (!LoSearch.IsValid())
+            continue;
+        auto LoID = LoSearch.GetSessionIdStr();
+        auto& LoSession = LoSearch.Session;
+        Print("\n",
+            " >> OwningUserId:     ", LoSession.OwningUserId->ToString(), "\n",
+            " >> OwningUserName:   ", LoSession.OwningUserName, "\n",
+            " >> Public Connects:  ", LoSession.NumOpenPublicConnections, "\n",
+            " >> Private Connects: ", LoSession.NumOpenPrivateConnections, "\n"
+        );
+    }
 }
 
 FString URpSessions::GetSessionId(FName SessionName) const
@@ -147,7 +188,7 @@ sp<TNetResult<>> URpSessions::ExeServerStartListenServer(int32 AvailableSlots)
 }
 
 sp<TNetResult<void, FOnCreateSessionCompleteDelegate>>
-URpSessions::ExeServerCreateSession(FOnCreateSessionCompleteDelegate& FoDelegate,FName FsSessionName, const FOnlineSessionSettings& FoSessionSettings)
+URpSessions::ExeServerCreateSession(FOnCreateSessionCompleteDelegate&& FoDelegate,FName FsSessionName, const FOnlineSessionSettings& FoSessionSettings)
 {
     // Starts Lobby Mode Session for people to get ready before game actually starts
     // In dedicated open-world, both Create+Start are used at the same time
@@ -199,7 +240,6 @@ URpSessions::ExeServerCreateSession(FOnCreateSessionCompleteDelegate& FoDelegate
     // Create the session.
     if (!Session->CreateSession(this->LocalUserNum, FsSessionName, FoSessionSettings))
     {
-        constexpr auto LbSuccessful = false;
         PrintW("CreateSession() call failed to start. FsSessionName = ", FsSessionName);
         if (ISession.GetNamedSession(FsSessionName) != nullptr){
             PrintE("Named session object already present right after failure (name collision).");
@@ -213,7 +253,7 @@ URpSessions::ExeServerCreateSession(FOnCreateSessionCompleteDelegate& FoDelegate
 
 sp<TNetResult<void, FOnStartSessionCompleteDelegate>>
 URpSessions::ExeServerStartSession(
-    FOnStartSessionCompleteDelegate& FoDelegate,
+    FOnStartSessionCompleteDelegate&& FoDelegate,
     FName FsSessionName,
     const FOnlineSessionSettings& FoSessionSettings)
 {

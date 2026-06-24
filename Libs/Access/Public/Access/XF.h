@@ -46,6 +46,8 @@ public:
     template<typename F, typename... R>
     static void ThrowNulls(const F* First, const R*... Rest);
     // ------------------------------------------------------------------------------------
+    static FString FindReplace(const FString& FsStr, const FString& FsToFind, const FString& FsToReplace);
+    static FString FindFirstMatch(const FString& FsStr, const FString& FsToFind);
 private:
     inline static std::string SsTempStr;
 };
@@ -170,3 +172,8 @@ void XF::ThrowNulls(const F* First, const R*... Rest)
     ThrowNulls(Rest...);
 }
 
+FORCEINLINE FString operator+(wchar_t* Left, const FString& Right)
+{
+    auto LsLeft = FString(Left);
+    return LsLeft + Right;
+}

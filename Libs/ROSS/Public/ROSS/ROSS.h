@@ -41,11 +41,11 @@ public:
 	static void Setup();
 	static void Shutdown();
 	UFUNCTION() void SetupPostLogin();
-	       bool BxReady() { return bReady && SoWorldPtr != nullptr; }
 	static bool InitializeReady(UWorld* FoWorldPtr);
-	static bool BxReady();
+	       bool BxReady();
 	static AROSS& GetRoss();
-	static TWeakObjectPtr<AROSS> GetRossPtr();
+	static TWeakObjectPtr<AROSS> GetRossWPtr();
+	static TObjectPtr<AROSS> GetRossPtr();
 	static void SetWorld(UWorld* FoWorldPtr);
 	static UWorld& GetWorldDrf();
 	static UWorld* GetWorldPtr();

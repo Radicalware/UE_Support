@@ -66,3 +66,25 @@ int32 XF::StringToInt(const FString& FsStr)
     else
         throw FString(FString("Invalid Number String: ") + FsStr);
 }
+
+FString XF::FindReplace(const FString& FsStr, const FString& FsToFind, const FString& FsToReplace)
+{
+    const auto LsPattern = L"(" + FsToFind + L")";
+    const auto LoPattern = std::wregex((wchar_t*)LsPattern.GetCharArray().GetData());
+    const auto LoOut = std::regex_replace((wchar_t*)FsStr.GetCharArray().GetData(), LoPattern, (wchar_t*)FsToReplace.GetCharArray().GetData());
+    return FString(LoOut.c_str());
+}
+
+FString XF::FindFirstMatch(const FString& FsStr, const FString& FsToFind)
+{
+    auto LbHasLeft = FsToFind.Contains(FString::Chr(L'('));
+    auto LbHasRight = FsToFind.Contains(FString::Chr(L')'));
+
+    std::wstring Pattern = (LbHasLeft && LbHasRight) ? std::wstring(*FsToFind) : L"(" + std::wstring(*FsToFind) + L")";
+    std::wregex  Regex(Pattern);
+    std::wstring Input(*FsStr);
+    std::wsmatch Match;
+    if (std::regex_search(Input, Match, Regex))
+        return FString(Match[1].str().c_str());
+    return FString();
+}

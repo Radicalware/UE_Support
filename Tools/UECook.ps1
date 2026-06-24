@@ -6,6 +6,7 @@ param(
 
     [switch]$OnlyClient,
     [switch]$OnlyServer,
+    [switch]$OnlyP2P,
     [switch]$Editor,
     [switch]$SkipShaderCompile,
 
@@ -23,15 +24,17 @@ $RunParams = [PSCustomObject]@{
     Editor      = $Editor.IsPresent
     Client      = $OnlyClient.IsPresent
     Server      = $OnlyServer.IsPresent
+    P2P         = $OnlyP2P.IsPresent
     SkipShaderCompile = $SkipShaderCompile.IsPresent
-    BuildBoth   = $false
+    BuildAll   = $false
 }
 
-if ($RunParams.Client -eq $false -and $RunParams.Server -eq $false) 
+if ($RunParams.Client -eq $false -and $RunParams.Server -eq $false -and $RunParams.P2P -eq $false) 
 {
     $RunParams.Client = $true
     $RunParams.Server = $true
-    $RunParams.BuildBoth = $true
+    $RunParams.P2P    = $true
+    $RunParams.BuildAll = $true
 }
 
 class Core 
@@ -60,7 +63,8 @@ class Core
         Write-Host "Then you can save to newer versions"
         Write-Host "Then you cook content"
 
-        $This.ArchiveDirectory = Join-Path $ProjectRoot "Build"
+        $This.ArchiveDirectory = "$ProjectRoot\Artifacts\Win64"
+
         if ($This.MoRunParams.Development) {
             $This.MsMethod = [Core]::Development
         } elseif ($This.MoRunParams.Shipping) {
@@ -144,7 +148,7 @@ class Core
 
         if($This.MoRunParams.Editor -eq $false)
         {
-            if($this.MoRunParams.BuildBoth -eq $false)
+            if($this.MoRunParams.BuildAll -eq $false)
             {
                 if ($This.MoRunParams.Client) {
                     $LvAargs += "-client" # exclusivly only client
@@ -162,8 +166,33 @@ class Core
         }
 
         $LsCommandArgs =  [Core]::JoinWithSpaces($LvAargs)
-
         $LsCommand = "$([Core]::RunUatPath) $LsCommandArgs"
+
+        return $LsCommand
+    }
+
+    [string] GetCookP2PCMD()
+    {
+        $LvAargs = @(
+            "BuildCookRun",
+            "-project=`"$($This.UProjectPath)`"",
+            "-noP4"
+            "-platform=Win64"
+            "-clientconfig=Development"
+            "-target=TheGame"
+            "-build"
+            "-cook"
+            "-stage"
+            "-package"
+            "-pak"
+            "-iostore"
+            "-archive"
+            "-archivedirectory=`"$($This.ArchiveDirectory)`""
+        )
+
+        $LsCommandArgs =  [Core]::JoinWithSpaces($LvAargs)
+        $LsCommand = "$([Core]::RunUatPath) $LsCommandArgs"
+        
         return $LsCommand
     }
 
@@ -222,7 +251,7 @@ function Show-Help {
     Write-Host "  -Shipping          Build in Shipping mode."
     Write-Host "  -Client            Build the Client target."
     Write-Host "  -Server            Build the Server target."
-    Write-Host "  -BuildBoth        Build both Client and Server targets."
+    Write-Host "  -BuildBoth         Build both Client and Server targets."
     Write-Host ""
     Write-Host "Example:"
     Write-Host "  .\UECook.ps1 -Development -BuildBoth"
@@ -232,13 +261,12 @@ function Show-Help {
 function Main 
 {
     if (-not $RunParams.Development -and -not $RunParams.Shipping) {
-        Write-Error "❌ You must specify either -Development or -Shipping."
-        Show-Help
-        exit 1
+        $RunParams.Development = $true
+        Write-Host "Setting Development by default (NOT Shipping)"
     }
 
-    if (-not $RunParams.Client -and -not $RunParams.Server) {
-        Write-Error "❌ You must specify at least one target: -Client or -Server (or use -BuildBoth)."
+    if (-not $RunParams.Client -and -not $RunParams.Server -and -not $RunParams.P2P) {
+        Write-Error "❌ Must have one of the following: Client, Server, P2P"
         Show-Help
         exit 1
     }
@@ -261,19 +289,35 @@ function Main
 
     [Core]::PrintLine()
     Write-Host "⏳ Starting Cook..."
-    $LsCommand = $LoCore.GetCookCMD()
-    Write-Host $LsCommand
-    
-    if(-not $OnlyPrint){
-        Invoke-Expression $LsCommand
+
+    if($RunParams.Client -eq $true -or $RunParams.Server -eq $true)
+    {
+        $LsCommand = $LoCore.GetCookCMD()
+        Write-Host $LsCommand
+        
+        if(-not $OnlyPrint){
+            Invoke-Expression $LsCommand
+        }
+        [Core]::PrintLine()
     }
-    [Core]::PrintLine()
+
+    
+    if($RunParams.P2P -eq $true)
+    {
+        $LsCommand = $LoCore.GetCookP2PCMD()
+        Write-Host $LsCommand
+        
+        if(-not $OnlyPrint){
+            Invoke-Expression $LsCommand
+        }
+        [Core]::PrintLine()
+    }
     
     if(-not $NoCopyFiles){
         $LoCore.CopyFiles()
     }
 
-    if($RunParams.BuildBoth) {
+    if($RunParams.BuildAll) {
         Write-Host "✅ Both Client and Server builds completed."
     }elseif($RunParams.Client) {
         Write-Host "✅ Client build completed."
@@ -291,4 +335,5 @@ Write-Host " 4. Run this script"
 
 Main;
 
+CopySteamAppID.ps1
 

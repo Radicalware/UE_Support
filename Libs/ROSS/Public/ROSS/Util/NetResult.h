@@ -6,6 +6,7 @@
 #include "UObject/StrongObjectPtr.h"
 #include "Templates/SharedPointer.h"
 #include "Interfaces/OnlineSessionDelegates.h"
+#include "Delegates/DelegateSignatureImpl.inl"
 
 #include <type_traits>
 #include <concepts>
@@ -64,9 +65,9 @@ protected:
         MoCallback.Unbind();
     }
 
+public:
     INL bool HasCompleted() const { return bDidCallback; }
     INL bool BxSuccessful() const { return MbWasSuccessful; }
-public:
     INL void SetExternalCallback(const C& FoCallback) { MoCallback = FoCallback; bDidCallback = false; }
 };
 

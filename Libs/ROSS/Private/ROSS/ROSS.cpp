@@ -108,7 +108,7 @@ AROSS& AROSS::GetRoss()
 	return *AROSS::GetRossPtr();
 }
 
-TWeakObjectPtr<AROSS> AROSS::GetRossPtr()
+TWeakObjectPtr<AROSS> AROSS::GetRossWPtr()
 {
 	if (!SoROSSPtr)
 	{
@@ -118,6 +118,18 @@ TWeakObjectPtr<AROSS> AROSS::GetRossPtr()
 			BBB("No World Ptr");
 	}
 	return SoROSSPtr.Get();
+}
+
+TObjectPtr<AROSS> AROSS::GetRossPtr()
+{
+	if (!SoROSSPtr)
+	{
+		if (SoWorldPtr)
+			AROSS::Setup();
+		else
+			BBB("No World Ptr");
+	}
+	return SoROSSPtr;
 }
 
 void AROSS::SetWorld(UWorld* FoWorldPtr)
@@ -167,7 +179,7 @@ void AROSS::Setup()
 		}
 	}
 	else {
-        throw BBB("Unsupported Net Mode for Steam API initialization");
+        Print("Running P2P, No Dedicated Server or Client mode detected.");
 	}
 
 #endif
@@ -241,6 +253,8 @@ bool AROSS::InitializeReady(UWorld* FoWorldPtr)
 		if(!FoWorld.GetFirstPlayerController())
             return false;
 		GET(LoPC, FoWorld.GetFirstPlayerController());
+        if (!LoPC.PlayerState)
+            return false;
 		GET(LoState, LoPC.PlayerState);
 		LocalUserNum = LoState.GetUniqueID();
 	}
@@ -277,6 +291,8 @@ bool AROSS::BxReady()
 {
 	if (!SoWorldPtr || !SoROSSPtr)
 		return false;
+    if (!bReady)
+        return false;
 	return true;
 }
 

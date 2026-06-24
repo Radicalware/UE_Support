@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Access/General.h"
+#include "ROSS/Util/RossSessionSettings.h"
+#include "ROSS/Util/GameConfig.h"
 #include "GameFramework/GameSession.h"
 #include "GameFramework/Actor.h"
 #include "OnlineSessionSettings.h"
@@ -29,7 +31,7 @@ class THEGAME_API ASessionManager : public AGameSession
         RegisterServer,
         CreateSession,
         StartSession,
-        StartLevel,
+        ServerTravelListen,
     };
     INL static EState SeState = EState::None;
 
@@ -64,20 +66,27 @@ public:
     void SetServerArguments();
     void SetupRoss();
     virtual void InitOptions(const FString& Options) override;
-    void SetSessionSettings();
+    static void SetSessionSettings(UWorld* FoWorldPtr);
+    static auto& GetGameConfig()  { return SoSettings.GetGameConfig(); }
+    static auto& GetSteamConfig() { return SoSettings.GetSteamConfig(); }
     INL void SetSessionName(const FString& FsSessionName) { SsSessionName = FName(*FsSessionName); SessionName = SsSessionName; }
-    INL void SetPort(uint32 FnPort) { SoSteamConfig.MnGamePort = FnPort; SoGameConfig.MnGamePort = FnPort; }
+    INL void SetPort(uint32 FnPort) { GetGameConfig().SetGamePort(FnPort); GetSteamConfig().MnGamePort = FnPort; }
     virtual void RegisterServer() override;
     UFUNCTION() void RegisterSteamServer();
     UFUNCTION() void OnSteamAuthenticationComplete();
+    UFUNCTION() void ServerCreateSession();
+    UFUNCTION() void P2PCreateSession();
     UFUNCTION() void CreateSession();
     void OnCreateSessionComplete(FName InSessionName, bool bWasSuccessful);
+    UFUNCTION() void ServerStartSession();
+    UFUNCTION() void P2PStartSession();
     UFUNCTION() void StartSession();
     virtual void OnStartSessionComplete(FName InSessionName, bool bWasSuccessful) override;
-    UFUNCTION() void StartLevel();
+    UFUNCTION() void ServerTravelListen(const FString& FsMapPath = "", const FString& FsModePath = "");
+    UFUNCTION() void ServerTravelJoin(const FString& FsMapPath = "", const FString& FsModePath = "");
 
-    inline const auto& GetSessionName() const { return SsSessionName; }
-    inline const auto& GetSessionSettings() const { return MoSessionSettings; }
+    inline static const auto& GetSessionName() { return SsSessionName; }
+    inline static auto& GetSettings() { return SoSettings; }
 
     // FOnLoginComplete, int32 /*LocalUserNum*/, bool /*bWasSuccessful*/, const FUniqueNetId& /*UserId*/, const FString& /*Error*/);
     virtual void OnAutoLoginComplete(int32 LocalUserNum, bool bWasSuccessful, const FString& Error) override;
@@ -92,7 +101,6 @@ public:
     virtual bool BanPlayer(APlayerController* BannedPlayerPtr, const FText& BanReason) override; /// TODO
     virtual void Restart() override;
     int32 GetSteamAppID() const;
-    FString GetMapName() const;
     virtual void RegisterServerFailed() override;
     virtual bool GetSessionJoinability(FName InSessionName, FJoinabilitySettings& OutSettings) override;
     virtual void UpdateSessionJoinability(
@@ -104,52 +112,15 @@ public:
     virtual void DumpSessionState() override;
     virtual void OnEndSessionComplete(FName InSessionName, bool bWasSuccessful) override;
 
+    UFUNCTION() void SearchSessions();
 protected:
     int32 GetNumPlayers() const;
     int32 GetNumSpectators() const;
 
-    class BaseConfig
-    {
-    public:
-        uint32 MnGamePort = 7777;
-    };
-    struct SteamConfig : public BaseConfig
-    {
-        uint32 unIP = 0;             // 0 = bind to all interfaces (most common)
-        uint16 MnEphemeralPort = 0;  // 0 = Steam picks an ephemeral port (recommended)
-        uint16 MnQueryPort = 27018;  // Source Query / A2S port for server browser
-        //uint16 MnGamePort = 27017; // your game's main UDP port (clients connect here)
-    };
-    class GameConfig : public BaseConfig
-    {
-    public:
-        INL GameConfig() { }
-
-        void SetFromCLI();
-
-        void SetMapPath(const FString& FsMapPath);
-        void SetModePath(const FString& FsModePath);
-
-        auto GetGamePort() const { return MnGamePort; }
-        const auto& GetMap()  const { return MsMap; }
-        const auto& GetMode() const { return MsMode; }
-        const auto& GetMapPath()  const { return MsMapPath; }
-        const auto& GetModePath() const { return MsModePath; }
-
-    private:
-        FString MsMapPath;
-        FString MsModePath;
-
-        FString MsMap;
-        FString MsMode;
-    };
-
-    static SteamConfig SoSteamConfig;
-    static GameConfig  SoGameConfig;
-
     static FName SsSessionName; // Static over AGameSession::SessionName instance cases (Set in StartSession)
-           FOnlineSessionSettings MoSessionSettings; // (ok to be instance based (per level based))
+    static FRossSessionSettings   SoSettings;
     static TSet<FUniqueNetIdRepl> SvSessionPlayers;
     static TMap<FUniqueNetIdRepl, APlayerController*> SmAdmins;
     static FString SsTravel;
+    inline static bool bUsingDedicatedServer = false;
 };
