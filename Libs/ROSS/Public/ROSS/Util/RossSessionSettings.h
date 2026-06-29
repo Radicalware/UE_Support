@@ -50,16 +50,9 @@ public:
 	/** Map of custom settings per session member (Not currently used by every OSS) */
 	TUniqueNetIdMap<FSessionSettings> MemberSettings;
 
-	FString MsSessionName;
+	FString MsSessionName = "Unset FRossSessionSettings";
 	FGameConfig MoGameConfig;
 	FSteamConfig MoSteamConfig;
-
-public:
-	inline auto& GetGameConfig() { return MoGameConfig; }
-	inline auto& GetSteamConfig() { return MoSteamConfig; }
-
-	inline auto& GetGameConfig()  const { return MoGameConfig; }
-	inline auto& GetSteamConfig() const { return MoSteamConfig; }
 
 	/** Default constructor, used when serializing a network packet */
 	FRossSessionSettings()
@@ -79,6 +72,27 @@ public:
 		, bUseLobbiesVoiceChatIfAvailable(false)
 		, BuildUniqueId(0)
 	{
+	}
+
+	FRossSessionSettings(const FGameConfig& FoGameConfig)
+		: NumPublicConnections(FoGameConfig.GetMaxPublicPlayers())
+		, NumPrivateConnections(FoGameConfig.GetMaxPrivatePlayers())
+		, bShouldAdvertise(false)
+		, bAllowJoinInProgress(false)
+		, bIsLANMatch(false)
+		, bIsDedicated(false)
+		, bUsesStats(false)
+		, bAllowInvites(false)
+		, bUsesPresence(false)
+		, bAllowJoinViaPresence(false)
+		, bAllowJoinViaPresenceFriendsOnly(false)
+		, bAntiCheatProtected(false)
+		, bUseLobbiesIfAvailable(false)
+		, bUseLobbiesVoiceChatIfAvailable(false)
+		, BuildUniqueId(0)
+		, MoGameConfig(FoGameConfig)
+	{
+
 	}
 
 	FRossSessionSettings(const FRossSessionSettings&) = default;
@@ -107,14 +121,20 @@ public:
 		, Settings(FoSettings.Settings)
 		, MemberSettings(FoSettings.MemberSettings)
 	{
+        FString LsSessionName;
+        FoSettings.Get(TEXT("SESSION_NAME"), LsSessionName);
+        MoGameConfig.SetSessionName(LsSessionName);
+        MsSessionName = LsSessionName;
+
 		int32 LnPort;
 		FoSettings.Get(TEXT("PORT"), LnPort);
+
 		FString LsMapPath;
 		FoSettings.Get(TEXT("MAP_PATH"), LsMapPath);
+		MoGameConfig.SetMapPath(LsMapPath);
+
 		FString LsModePath;
 		FoSettings.Get(TEXT("MODE_PATH"), LsModePath);
-
-		MoGameConfig.SetMapPath(LsMapPath);
 		MoGameConfig.SetModePath(LsModePath);
 
 		InitUniqueBuildID();
@@ -122,13 +142,15 @@ public:
 
 	void SetSessionSettingsMapMode(FOnlineSessionSettings& FoSettings) const
 	{
-		FoSettings.Set(TEXT("PORT"), (int32)GetGameConfig().GetGamePort(), EOnlineDataAdvertisementType::ViaOnlineService);
-		FoSettings.Set(TEXT("MAP"), GetGameConfig().GetMap(), EOnlineDataAdvertisementType::ViaOnlineService);
-		FoSettings.Set(TEXT("MODE"), GetGameConfig().GetMode(), EOnlineDataAdvertisementType::ViaOnlineService);
+        FoSettings.Set(TEXT("SESSION_NAME"), MsSessionName, EOnlineDataAdvertisementType::ViaOnlineService);
+
+		FoSettings.Set(TEXT("PORT"), (int32)MoGameConfig.GetGamePort(), EOnlineDataAdvertisementType::ViaOnlineService);
+		FoSettings.Set(TEXT("MAP"), MoGameConfig.GetMap(), EOnlineDataAdvertisementType::ViaOnlineService);
+		FoSettings.Set(TEXT("MODE"), MoGameConfig.GetMode(), EOnlineDataAdvertisementType::ViaOnlineService);
 
 
-		FoSettings.Set(TEXT("MAP_PATH"), GetGameConfig().GetMapPath(), EOnlineDataAdvertisementType::ViaOnlineService);
-		FoSettings.Set(TEXT("MODE_PATH"), GetGameConfig().GetModePath(), EOnlineDataAdvertisementType::ViaOnlineService);
+		FoSettings.Set(TEXT("MAP_PATH"), MoGameConfig.GetMapPath(), EOnlineDataAdvertisementType::ViaOnlineService);
+		FoSettings.Set(TEXT("MODE_PATH"), MoGameConfig.GetModePath(), EOnlineDataAdvertisementType::ViaOnlineService);
 	}
 
 	FRossSessionSettings(FOnlineSessionSettings&& FoSettings)

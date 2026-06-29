@@ -10,7 +10,7 @@ if (-not (Test-Path $SourcePath)) {
 }
 
 # Folders to search
-$SearchRoots = @("Artifacts", "Binaries", "Intermediate", "Saved")
+$SearchRoots = @("Build", "Binaries", "Intermediate", "Saved", "ArchivedBuilds")
 
 # Executable names to match
 $ExeNames = @(

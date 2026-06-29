@@ -7,6 +7,7 @@
 #include "ROSS/Util/NetResult.h"
 #include "OnlineSessionSettings.h"
 #include "Interfaces/OnlineSessionDelegates.h"
+#include "ROSS/Util/RossSessionSettings.h"
 #include "RpSessions.generated.h"
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -29,8 +30,8 @@ public:
     UFUNCTION() void OnSearchSessionsComplete();
     // -- Server Executions
     sp<TNetResult<>> ExeServerStartListenServer(int32 AvailableSlots);
-    sp<TNetResult<void, FOnCreateSessionCompleteDelegate>> ExeServerCreateSession(FOnCreateSessionCompleteDelegate&& FoDelegate, FName FsSessionName, const FOnlineSessionSettings& FoSessionSettings);
-    sp<TNetResult<void, FOnStartSessionCompleteDelegate>>  ExeServerStartSession(FOnStartSessionCompleteDelegate&& FoDelegate, FName FsSessionName, const FOnlineSessionSettings& FoSessionSettings);
+    sp<TNetResult<void, FOnCreateSessionCompleteDelegate>> ExeServerCreateSession(FOnCreateSessionCompleteDelegate&& FoDelegate, const FRossSessionSettings& FoSessionSettings);
+    sp<TNetResult<void, FOnStartSessionCompleteDelegate>>  ExeServerStartSession(FOnStartSessionCompleteDelegate&& FoDelegate, const FRossSessionSettings& FoSessionSettings);
     sp<TNetResult<>> ExeServerEndSession(FName SessionName);
     sp<TNetResult<>> ExeServerTravelToMapAndMode(const FOnlineSessionSettings& FoSettings);
     sp<TNetResult<>> ExeServerDestroySession(FName SessionName);

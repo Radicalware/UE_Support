@@ -262,68 +262,68 @@ auto& __VARNAME__ = *__MEMBER_NAME__;
 #define GetWeak(...) GET_MACRO(GetWeak, void(), ##__VA_ARGS__)
 //1 Get reference
 #define GetWeak1(VD,__VARNAME__) \
- if(__VARNAME__##Wk == nullptr || __VARNAME__##Wk.IsValid() == false) { \
- throw BBB("Null Object Thrown, \"" #__VARNAME__ "Wk\" In Class \"" __CLASS__ "\""); \
- } \
- auto& __VARNAME__ = *__VARNAME__##Wk.Pin().Get();
+    if(__VARNAME__##Wk == nullptr || __VARNAME__##Wk.IsValid() == false) { \
+        throw BBB("Null Object Thrown, \"" #__VARNAME__ "Wk\" In Class \"" __CLASS__ "\""); \
+    } \
+    auto& __VARNAME__ = *__VARNAME__##Wk.Pin().Get();
 //2 Args throws exception
 #define GetWeak2(VD,__VARNAME__,__PARAM__) \
- auto __VARNAME__##Wk = __PARAM__; \
- if(!ensure(__VARNAME__##Wk != nullptr && __VARNAME__##Wk.IsValid())) { \
- throw BBB("Null Object Thrown, \"" #__PARAM__ "\" In Class \"" __CLASS__ "\""); \
- } \
- auto& __VARNAME__ = *__VARNAME__##Wk.Pin().Get();
+    auto __VARNAME__##Wk = __PARAM__; \
+    if(!ensure(__VARNAME__##Wk != nullptr && __VARNAME__##Wk.IsValid())) { \
+        throw BBB("Null Object Thrown, \"" #__PARAM__ "\" In Class \"" __CLASS__ "\""); \
+    } \
+    auto& __VARNAME__ = *__VARNAME__##Wk.Pin().Get();
 
 //3 Args returns type
 #define GetWeak3(VD,__VARNAME__,__PARAM__,__RETURN__) \
- auto __VARNAME__##Wk = __PARAM__; \
- if(!ensure(__VARNAME__##Wk != nullptr && __VARNAME__##Wk.IsValid())) { \
- return __RETURN__; \
- } \
- auto& __VARNAME__ = *__VARNAME__##Wk.Pin().Get();
+    auto __VARNAME__##Wk = __PARAM__; \
+    if(!ensure(__VARNAME__##Wk != nullptr && __VARNAME__##Wk.IsValid())) { \
+        return __RETURN__; \
+    } \
+    auto& __VARNAME__ = *__VARNAME__##Wk.Pin().Get();
 
 
 
 #define GetWeakSafe(...) GET_MACRO(GetWeakSafe, void(), ##__VA_ARGS__)
 #define GetWeakSafe1(VD,__VARNAME__) \
- auto __VARNAME__##_Wk = __VARNAME__##Wk; \
- if(__VARNAME__##_Wk == nullptr || __VARNAME__##_Wk.IsValid() == false) { \
- return void(); \
- } \
- auto& __VARNAME__ = *__VARNAME__##_Wk.Pin().Get();
+    auto __VARNAME__##_Wk = __VARNAME__##Wk; \
+    if(__VARNAME__##_Wk == nullptr || __VARNAME__##_Wk.IsValid() == false) { \
+        return void(); \
+    } \
+    auto& __VARNAME__ = *__VARNAME__##_Wk.Pin().Get();
 
 #define GetWeakSafe2(VD,__VARNAME__,__PARAM__) \
- auto __VARNAME__##_Wk = __PARAM__; \
- if(__VARNAME__##_Wk == nullptr || __VARNAME__##_Wk.IsValid() == false) { \
- return void(); \
- } \
- auto& __VARNAME__ = *__VARNAME__##_Wk.Pin().Get();
+    auto __VARNAME__##_Wk = __PARAM__; \
+    if(__VARNAME__##_Wk == nullptr || __VARNAME__##_Wk.IsValid() == false) { \
+        return void(); \
+    } \
+    auto& __VARNAME__ = *__VARNAME__##_Wk.Pin().Get();
 
 
 #define GetWeakSafe3(VD,__VARNAME__,__PARAM__,__RETURN__) \
- auto __VARNAME__##_Wk = __PARAM__; \
- if(__VARNAME__##_Wk == nullptr || __VARNAME__##_Wk.IsValid() == false) { \
- return __RETURN__; \
- } \
- auto& __VARNAME__ = *__VARNAME__##_Wk.Pin().Get();
+    auto __VARNAME__##_Wk = __PARAM__; \
+    if(__VARNAME__##_Wk == nullptr || __VARNAME__##_Wk.IsValid() == false) { \
+        return __RETURN__; \
+    } \
+    auto& __VARNAME__ = *__VARNAME__##_Wk.Pin().Get();
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Game Mode
 // Only works when you are on the server
 
 #define GetTheAuthGameMode() \
- ATheGameMode* TheGameModePtr = GetWorld()->GetAuthGameMode<ATheGameMode>(); \
- if(!TheGameModePtr) \
- throw BBB("GetWorld()->GetAuthGameMode<ATheGameMode>()"); \
- ATheGameMode& TheGameMode = *TheGameModePtr;
+    ATheGameMode* TheGameModePtr = GetWorld()->GetAuthGameMode<ATheGameMode>(); \
+    if(!TheGameModePtr) \
+        throw BBB("GetWorld()->GetAuthGameMode<ATheGameMode>()"); \
+    ATheGameMode& TheGameMode = *TheGameModePtr;
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Controller
 
 #define GetControllerFromOwningLocalPlayer \
- if (!ensure(Cast<AHoldemController>(GetOwningLocalPlayer()->GetPlayerController(GetWorld())))) \
- return; \
- AHoldemController& Controller = *Cast<AHoldemController>(GetOwningLocalPlayer()->GetPlayerController(GetWorld()));
+    if (!ensure(Cast<AHoldemController>(GetOwningLocalPlayer()->GetPlayerController(GetWorld())))) \
+        return; \
+    AHoldemController& Controller = *Cast<AHoldemController>(GetOwningLocalPlayer()->GetPlayerController(GetWorld()));
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Player State & Game State Control
@@ -337,102 +337,102 @@ auto& __VARNAME__ = *__MEMBER_NAME__;
 // TArray<AThePlayerState*> ThePlayerStates = GS.Rock().GetOrderedPlayerStates();
 
 #define GetDoubleThePlayerStates() \
- GetTheGameState(); \
- TArray<AThePlayerState*> ThePlayerStates = GS.Rock().GetOrderedPlayerStates(); \
- const TArray<AThePlayerState*> PlayerStatesSingle = ThePlayerStates; \
- ThePlayerStates += PlayerStatesSingle;
+    GetTheGameState(); \
+    TArray<AThePlayerState*> ThePlayerStates = GS.Rock().GetOrderedPlayerStates(); \
+    const TArray<AThePlayerState*> PlayerStatesSingle = ThePlayerStates; \
+    ThePlayerStates += PlayerStatesSingle;
 
 #define LoopThePlayerStates() \
- for(AThePlayerState* ThePlayerStatePtr : ThePlayerStates)
+    for(AThePlayerState* ThePlayerStatePtr : ThePlayerStates)
 
 #define LoopBraces() \
- for(auto& Pair : MmBraces)
+    for(auto& Pair : MmBraces)
 
 #define LoopBraces1() \
- for(auto& Pair1 : MmBraces)
+    for(auto& Pair1 : MmBraces)
 
 #define LoopBraces2() \
- for(auto& Pair2 : MmBraces)
+    for(auto& Pair2 : MmBraces)
 
 #define LoopTheOtherPlayerStates() \
- for(AThePlayerState* TheOtherPlayerStatePtr : ThePlayerStates)
+    for(AThePlayerState* TheOtherPlayerStatePtr : ThePlayerStates)
 
 #define GetAndLoopThePlayerStates() \
- GetThePlayerStates(); \
- for(AThePlayerState* ThePlayerStatePtr : ThePlayerStates)
+    GetThePlayerStates(); \
+    for(AThePlayerState* ThePlayerStatePtr : ThePlayerStates)
 
 #define ForeachPlayerState(__ACTION__) \
- LoopBraces() \
- { \
- RefState(); \
- LoState.__ACTION__; \
- }
+    LoopBraces() \
+    { \
+        RefState(); \
+        LoState.__ACTION__; \
+    }
 
 #define RefThePlayerState(...) GET_MACRO(RefThePlayerState, void(), ##__VA_ARGS__)
 #define RefThePlayerState0(VD) \
- GetRef1(VD, ThePlayerState);
+    GetRef1(VD, ThePlayerState);
 #define RefThePlayerState1(VD, __RET__) \
- GetRef3(VD, ThePlayerState, ThePlayerStatePtr, __RET__);
+    GetRef3(VD, ThePlayerState, ThePlayerStatePtr, __RET__);
 
 #define GetBraces() \
- GS.LocalUpdatePlayerBraces(); \
- OMap<int32, FHoldemBrace>& MmBraces = GS.GetPlayers();
+    GS.LocalUpdatePlayerBraces(); \
+    OMap<int32, FHoldemBrace>& MmBraces = GS.GetPlayers();
 
 #define RefState() \
- auto& LoBrace = Pair.second; \
- auto& LoState = LoBrace.GetState();
+    auto& LoBrace = Pair.second; \
+    auto& LoState = LoBrace.GetState();
 
 #define RefState1() \
- auto& LoBrace1 = Pair1.second; \
- auto& LoState1 = LoBrace1.GetState();
+    auto& LoBrace1 = Pair1.second; \
+    auto& LoState1 = LoBrace1.GetState();
 
 #define RefState2() \
- auto& LoBrace2 = Pair2.second; \
- auto& LoState2 = LoBrace2.GetState();
+    auto& LoBrace2 = Pair2.second; \
+    auto& LoState2 = LoBrace2.GetState();
 
 #define RefTheOtherPlayerState(...) GET_MACRO(RefTheOtherPlayerState, void(), ##__VA_ARGS__)
 #define RefTheOtherPlayerState0(VD) \
- GetRef1(VD, TheOtherPlayerState);
+    GetRef1(VD, TheOtherPlayerState);
 #define RefTheOtherPlayerState1(VD, __RET__) \
- GetRef3(VD, TheOtherPlayerState, TheOtherPlayerStatePtr, __RET__);
+    GetRef3(VD, TheOtherPlayerState, TheOtherPlayerStatePtr, __RET__);
 
 #define GetTheGameState(...) GET_MACRO(GetTheGameState, void(), ##__VA_ARGS__)
 #define GetTheGameState0(VD) \
- NullThrow1(VD,GetWorld()); \
- ATheGameState* GSPtr = GetWorld()->GetGameState<ATheGameState>(); \
- if(!GSPtr) \
- throw BBB("GetWorld()->GetGameState<ATheGameState>()"); \
- ATheGameState& GS = *GSPtr;
+    NullThrow1(VD,GetWorld()); \
+    ATheGameState* GSPtr = GetWorld()->GetGameState<ATheGameState>(); \
+    if(!GSPtr) \
+        throw BBB("GetWorld()->GetGameState<ATheGameState>()"); \
+    ATheGameState& GS = *GSPtr;
 #define GetTheGameState1(VD,__RET__) \
- NullEnsure2(VD, GetWorld(), __RET__); \
- ATheGameState* GSPtr = GetWorld()->GetGameState<ATheGameState>(); \
- if(!GSPtr) \
- return __RET__; \
- ATheGameState& GS = *GSPtr;
+    NullEnsure2(VD, GetWorld(), __RET__); \
+    ATheGameState* GSPtr = GetWorld()->GetGameState<ATheGameState>(); \
+    if(!GSPtr) \
+        return __RET__; \
+    ATheGameState& GS = *GSPtr;
 
 
 #define BxHasGameState() \
- (GetWorld()->GetGameState<ATheGameState>() != nullptr)
+    (GetWorld()->GetGameState<ATheGameState>() != nullptr)
 
 // Can't take VA args because GetTheGameState takses specifically1 or2 depending on inputs
 // so you will need to make GetGS1 & GetGS2 and then merge to GetGS
 #define GetGS() \
- GetTheGameState()
+    GetTheGameState()
 #define GetGamePlayers() \
- GetTheGameState(); \
- GetBraces();
+   GetTheGameState(); \
+    GetBraces();
 
 #define GetThePlayerState() \
- AThePlayerState* ThePlayerStatePtr = GetPlayerState<AThePlayerState>(); \
- if(!ThePlayerStatePtr) \
- throw BBB("GetWorld()->GetPlayerState<AThePlayerState>()"); \
- AThePlayerState& ThePlayerState = *ThePlayerStatePtr;
+    AThePlayerState* ThePlayerStatePtr = GetPlayerState<AThePlayerState>(); \
+    if(!ThePlayerStatePtr) \
+        throw BBB("GetWorld()->GetPlayerState<AThePlayerState>()"); \
+    AThePlayerState& ThePlayerState = *ThePlayerStatePtr;
 
 #define GetThePlayerStateFromOwner() \
- AThePlayerState* ThePlayerStatePtr = GetOwningPlayerState<AThePlayerState>(); \
- if(!ThePlayerStatePtr) \
- throw BBB("GetWorld()->GetPlayerState<AThePlayerState>()"); \
- AThePlayerState& ThePlayerState = *ThePlayerStatePtr;
+    AThePlayerState* ThePlayerStatePtr = GetOwningPlayerState<AThePlayerState>(); \
+    if(!ThePlayerStatePtr) \
+        throw BBB("GetWorld()->GetPlayerState<AThePlayerState>()"); \
+    AThePlayerState& ThePlayerState = *ThePlayerStatePtr;
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Array Handling
@@ -449,22 +449,22 @@ auto& __VARNAME__ = *__MEMBER_NAME__;
 
 #define ThrowOutOfRange(...) GET_MACRO(ThrowOutOfRange, void(), ##__VA_ARGS__)
 #define ThrowOutOfRange2(VD,__ARRAY__, __IDX__) \
- if!( __IDX__ < static_cast<int32>(__ARRAY__.Num()))) \
- throw BBB("\n", #__ARRAY__, ".Num() = ", __ARRAY__.Num(), \
- "\n", #__IDX__, " = ", __IDX__);
+    if!( __IDX__ < static_cast<int32>(__ARRAY__.Num()))) \
+        throw BBB("\n", #__ARRAY__, ".Num() = ", __ARRAY__.Num(), \
+    "\n", #__IDX__, " = ", __IDX__);
 #define ThrowOutOfRange3(VD,__ARRAY__, __IDX__,__MESSAGE__) \
- if!( __IDX__ < static_cast<int32>(__ARRAY__.Num()))) \
- throw BBB("\n", #__ARRAY__, ".Num() = ", __ARRAY__.Num(), \
- "\n", #__IDX__, " = ", __IDX__, "\n", __MESSAGE__);
+    if!( __IDX__ < static_cast<int32>(__ARRAY__.Num()))) \
+        throw BBB("\n", #__ARRAY__, ".Num() = ", __ARRAY__.Num(), \
+    "\n", #__IDX__, " = ", __IDX__, "\n", __MESSAGE__);
 
 #define MSetElement(__ARRAY__,__IDX__,__ELEMENT__) \
- ThrowOutOfRange(__ARRAY__, __IDX__) \
- __ARRAY__[__IDX__] = __ELEMENT__;
+    ThrowOutOfRange(__ARRAY__, __IDX__) \
+    __ARRAY__[__IDX__] = __ELEMENT__;
 
 
 #define MSetVariableFromIdx(__VAR__,__ARRAY__,__IDX__) \
- ThrowOutOfRange(__ARRAY__, __IDX__) \
- __VAR__ = __ARRAY__[__IDX__];
+    ThrowOutOfRange(__ARRAY__, __IDX__) \
+    __VAR__ = __ARRAY__[__IDX__];
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Place this around code that you want to loop until it works
@@ -476,9 +476,9 @@ auto& __VARNAME__ = *__MEMBER_NAME__;
 inline bool UsingEditor()
 {
 #if WITH_EDITOR
- return true;
+    return true;
 #else
- return false;
+    return false;
 #endif
 }
 
@@ -508,8 +508,8 @@ inline bool UsingEditor()
 #define InitNetSource() InitTracker(ErrorTracker);
 
 #define Boomerang(__RET_TYPE__, ...) { \
- ATracker::DelayAction(GetWorld(), this, __CLASS__,0.1, ## __VA_ARGS__); \
- return __RET_TYPE__; \
+    ATracker::DelayAction(GetWorld(), this, __CLASS__,0.1, ## __VA_ARGS__); \
+    return __RET_TYPE__; \
  }
 
 #define INIT_BODY() \
@@ -518,37 +518,37 @@ inline bool UsingEditor()
 
 #define HandleCatch(...) \
  if(!ErrorLooperPtr) { InitNetSource() } \
- ErrorLooperPtr->User = this; \
- ErrorLooperPtr->Slingshot(GetWorld(), __CLASS__, ## __VA_ARGS__); 
+    ErrorLooperPtr->User = this; \
+    ErrorLooperPtr->Slingshot(GetWorld(), __CLASS__, ## __VA_ARGS__); 
 
 #define StartNet() \
  try \
  {
 
 #define EndNet(...) \
- }catch(const FString& LsError) \
- { \
- PrintCatchMessage(); \
- HandleCatch(); \
- }catch(const char* LsError) \
- { \
- PrintCatchMessage(); \
- HandleCatch(); \
- }catch(...) \
- { \
- PrintW("Unknown Error"); \
- HandleCatch(); \
- }
+    }catch(const FString& LsError) \
+    { \
+        PrintCatchMessage(); \
+        HandleCatch(); \
+        }catch(const char* LsError) \
+        { \
+        PrintCatchMessage(); \
+        HandleCatch(); \
+        }catch(...) \
+        { \
+        PrintW("Unknown Error"); \
+        HandleCatch(); \
+    }
 
 
 #define CUSTOM_BODY() \
- InitNetHeader();
+    InitNetHeader();
 
 #define CustomBeginPlay(...) GET_MACRO(CustomBeginPlay, void(), ##__VA_ARGS__)
 #define CustomBeginPlay0(VD) \
- InitNetSource();
+    InitNetSource();
 #define CustomBeginPlay1(VD, __RET_TYPE__) \
- InitNetSource();
+    InitNetSource();
 
 
 namespace RXM {
@@ -560,15 +560,15 @@ namespace RXM {
 // Misc
 
 #define GetRock() \
- NullThrow1(void(), RockPtr); \
- URock& Rock = *RockPtr;
+    NullThrow1(void(), RockPtr); \
+    URock& Rock = *RockPtr;
 
 #define GetWorldRef(...) GET_MACRO(GetWorldRef, void(), ##__VA_ARGS__)
 #define GetWorldRef0(VD) \
- GetRef2(VD,World, GetWorld());
+    GetRef2(VD,World, GetWorld());
 #define GetWorldRef1(VD, __RET__) \
- NullCheck2(VD,GetWorld(), __RET__); \
- GetRef3(VD,World, GetWorld(),__RET__);
+    NullCheck2(VD,GetWorld(), __RET__); \
+    GetRef3(VD,World, GetWorld(),__RET__);
 
 #define ExitIfEditor(__PARAM__) if(GIsEditor && !GIsPlayInEditorWorld) return __PARAM__;
 #define IsInEditor GIsEditor && !GIsPlayInEditorWorld
@@ -580,27 +580,27 @@ namespace RXM {
 // GetNetMode() == NM_DedicatedServer
 
 #define MReturnOnServer() \
- if(GetNetMode() == NM_DedicatedServer) return;
+    if(GetNetMode() == NM_DedicatedServer) return;
 
 // Must Be The Servers
 #define MBxServer() \
- (GetNetMode() == NM_Standalone \
- || GetNetMode() == NM_DedicatedServer \
- || GetNetMode() == NM_ListenServer)
+     (GetNetMode() == NM_Standalone \
+     || GetNetMode() == NM_DedicatedServer \
+     || GetNetMode() == NM_ListenServer)
 
 // Can be Autonomous or Simulated Proxy (Player Clients)
 #define MBxOnClient() \
- (GetNetMode() == NM_Client)
+    (GetNetMode() == NM_Client)
 
 #define MBxLocal() \
- (!MBxServer())
+    (!MBxServer())
 
 #define BxOwningConnection (GetLocalRole() != ENetRole::ROLE_SimulatedProxy)
 // If you are simulated, you don't have a network owning role
 
 #define ReturnOnClient() \
- if(MBxLocal()) return; \
- if(HasNull()) return;
+    if(MBxLocal()) return; \
+    if(HasNull()) return;
 
 #define MakeText(__PARAM__) FText::FromString(TEXT(__PARAM__))
 #define MakeName(__PARAM__) FName(TEXT(__PARAM__))

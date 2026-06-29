@@ -30,8 +30,14 @@ public:
 
     static bool BxMapExists(const FString& FsPathToWorld);
     static bool BxGameModeExists(const FString& FsPathToGameMode);
+    static bool BxActorExists(const FString& FsPathToActor);
+    template<typename T>
+    static bool BxUObjectExists(const FString& FsPathToUObject);
 
     static int32 StringToInt(const FString& FsStr);
+
+    template<typename T>
+    static std::tuple<FString, FString> ToUObjectAndAssetPath(const FString& FsFilePath);
 
     // ------------------------------------------------------------------------------------
     // CombineToString(...) = Join Values of All Sorts Into One Line of Text
@@ -140,6 +146,36 @@ template<typename F, typename S>
 inline constexpr bool XF::Appx(F&& LnFirst, S&& LnSecond)
 {
     return FMath::IsNearlyEqual(LnFirst, LnSecond);
+}
+
+template<typename T>
+inline bool XF::BxUObjectExists(const FString& FsPathToUObject)
+{
+    UClass* LoUObjectClass = StaticLoadClass(T::StaticClass(), nullptr, *FsPathToUObject);
+    if (!LoUObjectClass) {
+        PrintE("UObject NOT found: ", FsPathToUObject);
+        return false;
+    }
+    return true;
+}
+
+template<typename T>
+inline std::tuple<FString, FString> XF::ToUObjectAndAssetPath(const FString& FsFilePath)
+{
+    auto LsAssetPath = FsFilePath;
+    LsAssetPath = XF::FindReplace(LsAssetPath, TEXT(R"(^(\.?)/Content/)"), TEXT("/Game/"));
+    LsAssetPath = XF::FindReplace(LsAssetPath, TEXT(R"(\.uasset$)"), TEXT(""));
+    const auto LsName = FPackageName::GetShortName(LsAssetPath);
+    if (!LsAssetPath.EndsWith(TEXT("_C")))
+    {
+        const auto LsAssetName = XF::FindFirstMatch(LsAssetPath, TEXT(R"(/([^/]+)$)"));
+        LsAssetPath += TEXT(".") + LsAssetName + TEXT("_C");
+    }
+    LsAssetPath = "Blueprint'" + LsAssetPath + "'";
+    ensure(!LsAssetPath.IsEmpty());
+    ensure(!LsName.IsEmpty());
+    ensure(XF::BxUObjectExists<T>(LsAssetPath));
+    return std::make_tuple(LsName, LsAssetPath);
 }
 
 template <typename FF, typename ... RR>

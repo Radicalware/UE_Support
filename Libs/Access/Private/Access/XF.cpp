@@ -48,11 +48,22 @@ bool XF::BxMapExists(const FString& FsPathToWorld)
     return true;
 }
 
+
 bool XF::BxGameModeExists(const FString& FsPathToGameMode)
 {
     UClass* LoGameModeClass = StaticLoadClass(AGameModeBase::StaticClass(), nullptr, *FsPathToGameMode);
     if (!LoGameModeClass) {
         PrintE("GameMode class NOT found: ", FsPathToGameMode);
+        return false;
+    }
+    return true;
+}
+
+bool XF::BxActorExists(const FString& FsPathToActor)
+{
+    UClass* LoActorClass = StaticLoadClass(AActor::StaticClass(), nullptr, *FsPathToActor);
+    if (!LoActorClass) {
+        PrintE("Actor class NOT found: ", FsPathToActor);
         return false;
     }
     return true;
@@ -69,22 +80,24 @@ int32 XF::StringToInt(const FString& FsStr)
 
 FString XF::FindReplace(const FString& FsStr, const FString& FsToFind, const FString& FsToReplace)
 {
-    const auto LsPattern = L"(" + FsToFind + L")";
-    const auto LoPattern = std::wregex((wchar_t*)LsPattern.GetCharArray().GetData());
-    const auto LoOut = std::regex_replace((wchar_t*)FsStr.GetCharArray().GetData(), LoPattern, (wchar_t*)FsToReplace.GetCharArray().GetData());
-    return FString(LoOut.c_str());
+    const std::wstring LsInput(*FsStr);
+    const std::wstring LsPattern = L"(" + std::wstring(*FsToFind) + L")";
+    const std::wstring LsReplacement(*FsToReplace);
+    const std::wregex  LoRegex(LsPattern);
+    const std::wstring Output = std::regex_replace(LsInput, LoRegex, LsReplacement);
+    return FString(Output.c_str());
 }
 
 FString XF::FindFirstMatch(const FString& FsStr, const FString& FsToFind)
 {
-    auto LbHasLeft = FsToFind.Contains(FString::Chr(L'('));
-    auto LbHasRight = FsToFind.Contains(FString::Chr(L')'));
+    const auto LbHasLeft  = FsToFind.Contains(FString::Chr(L'('));
+    const auto LbHasRight = FsToFind.Contains(FString::Chr(L')'));
 
-    std::wstring Pattern = (LbHasLeft && LbHasRight) ? std::wstring(*FsToFind) : L"(" + std::wstring(*FsToFind) + L")";
-    std::wregex  Regex(Pattern);
-    std::wstring Input(*FsStr);
-    std::wsmatch Match;
-    if (std::regex_search(Input, Match, Regex))
-        return FString(Match[1].str().c_str());
+    const std::wstring Pattern = (LbHasLeft && LbHasRight) ? std::wstring(*FsToFind) : L"(" + std::wstring(*FsToFind) + L")";
+    const std::wregex  LoRegex(Pattern);
+    const std::wstring LsInput(*FsStr);
+    std::wsmatch LoMatch;
+    if (std::regex_search(LsInput, LoMatch, LoRegex))
+        return FString(LoMatch[1].str().c_str());
     return FString();
 }

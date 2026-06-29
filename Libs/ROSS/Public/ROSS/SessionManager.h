@@ -66,10 +66,10 @@ public:
     void SetServerArguments();
     void SetupRoss();
     virtual void InitOptions(const FString& Options) override;
-    static void SetSessionSettings(UWorld* FoWorldPtr);
-    static auto& GetGameConfig()  { return SoSettings.GetGameConfig(); }
-    static auto& GetSteamConfig() { return SoSettings.GetSteamConfig(); }
-    INL void SetSessionName(const FString& FsSessionName) { SsSessionName = FName(*FsSessionName); SessionName = SsSessionName; }
+    void SetSessionSettings(UWorld* FoWorldPtr, const FGameConfig& FoGameConfig);
+    static auto& GetGameConfig()  { return SoSettings.MoGameConfig; }
+    static auto& GetSteamConfig() { return SoSettings.MoSteamConfig; }
+    void SetSessionName(const FString& FsSessionName);
     INL void SetPort(uint32 FnPort) { GetGameConfig().SetGamePort(FnPort); GetSteamConfig().MnGamePort = FnPort; }
     virtual void RegisterServer() override;
     UFUNCTION() void RegisterSteamServer();
@@ -113,12 +113,13 @@ public:
     virtual void OnEndSessionComplete(FName InSessionName, bool bWasSuccessful) override;
 
     UFUNCTION() void SearchSessions();
+    static FRossSessionSettings   SoSettings;
 protected:
     int32 GetNumPlayers() const;
     int32 GetNumSpectators() const;
 
     static FName SsSessionName; // Static over AGameSession::SessionName instance cases (Set in StartSession)
-    static FRossSessionSettings   SoSettings;
+    inline static const FName SsSessionNameUnset = FName(TEXT("Unset"));
     static TSet<FUniqueNetIdRepl> SvSessionPlayers;
     static TMap<FUniqueNetIdRepl, APlayerController*> SmAdmins;
     static FString SsTravel;

@@ -3,6 +3,7 @@
 #include "OnlineAuthHandlerSteam.h"
 #include "Templates/SharedPointer.h"
 #include "GameFramework/GameModeBase.h"
+#include "GameFramework/PlayerState.h"
 #include "Interfaces/OnlinePartyInterface.h"
 #include "Interfaces/OnlineSessionInterface.h"
 #include "Online/OnlineSessionNames.h"
@@ -188,11 +189,12 @@ sp<TNetResult<>> URpSessions::ExeServerStartListenServer(int32 AvailableSlots)
 }
 
 sp<TNetResult<void, FOnCreateSessionCompleteDelegate>>
-URpSessions::ExeServerCreateSession(FOnCreateSessionCompleteDelegate&& FoDelegate,FName FsSessionName, const FOnlineSessionSettings& FoSessionSettings)
+URpSessions::ExeServerCreateSession(FOnStartSessionCompleteDelegate&& FoDelegate, const FRossSessionSettings& FoSessionSettings)
 {
     // Starts Lobby Mode Session for people to get ready before game actually starts
     // In dedicated open-world, both Create+Start are used at the same time
 
+    const auto LsSessionName = FName(*FoSessionSettings.MsSessionName);
 
     auto& OSS = GetIOnlineSubsytem();
     auto Session = GetSessionPtr(OSS);
@@ -206,7 +208,7 @@ URpSessions::ExeServerCreateSession(FOnCreateSessionCompleteDelegate&& FoDelegat
     auto Identity = OSS.GetIdentityInterface();
     if (!Identity.IsValid())
     {
-        LoResultPtr->OnResult(false, TEXT("Steam subsystem not available or user not logged in."), FsSessionName, false);
+        LoResultPtr->OnResult(false, TEXT("Steam subsystem not available or user not logged in."), LsSessionName, false);
         return LoResultPtr;
     }
 
@@ -215,13 +217,13 @@ URpSessions::ExeServerCreateSession(FOnCreateSessionCompleteDelegate&& FoDelegat
     *CallbackHandle =
         Session->AddOnCreateSessionCompleteDelegate_Handle(FOnCreateSessionCompleteDelegate::CreateWeakLambda(
             this,
-            [Session, CallbackHandle, FsSessionName, ResultWk = TWeakPtr<TNetResult<void, FOnCreateSessionCompleteDelegate>>(LoResultPtr)]
+            [Session, CallbackHandle, LsSessionName, ResultWk = TWeakPtr<TNetResult<void, FOnCreateSessionCompleteDelegate>>(LoResultPtr)]
             (
                 FName CallbackSessionName,
                 bool bCallbackWasSuccessful) 
             {
                     // Check if this callback is for us.
-                    if (!FsSessionName.IsEqual(CallbackSessionName))
+                    if (!LsSessionName.IsEqual(CallbackSessionName))
                         return;
 
                     GetWeakSafe(Result);
@@ -230,7 +232,7 @@ URpSessions::ExeServerCreateSession(FOnCreateSessionCompleteDelegate&& FoDelegat
                         bCallbackWasSuccessful 
                             ? TEXT("") 
                             : TEXT("Create session operation failed."),
-                        FsSessionName,           // delegate 1st arg
+                        LsSessionName,           // delegate 1st arg
                         bCallbackWasSuccessful); // delegate 2nd arg
 
                     // Unregister this callback since we've handled the call we care about.
@@ -238,28 +240,26 @@ URpSessions::ExeServerCreateSession(FOnCreateSessionCompleteDelegate&& FoDelegat
             }));
 
     // Create the session.
-    if (!Session->CreateSession(this->LocalUserNum, FsSessionName, FoSessionSettings))
+    if (!Session->CreateSession(this->LocalUserNum, LsSessionName, FoSessionSettings.ToOnlineSessionSettings()))
     {
-        PrintW("CreateSession() call failed to start. FsSessionName = ", FsSessionName);
-        if (ISession.GetNamedSession(FsSessionName) != nullptr){
+        PrintW("CreateSession() call failed to start. LsSessionName = ", LsSessionName);
+        if (ISession.GetNamedSession(LsSessionName) != nullptr){
             PrintE("Named session object already present right after failure (name collision).");
         }
         Session->ClearOnCreateSessionCompleteDelegate_Handle(*CallbackHandle);
-        LoResultPtr->OnResult(false, TEXT("CreateSession call failed to start."), FsSessionName, false);
+        LoResultPtr->OnResult(false, TEXT("CreateSession call failed to start."), LsSessionName, false);
     }
     return LoResultPtr;
 }
 
 
 sp<TNetResult<void, FOnStartSessionCompleteDelegate>>
-URpSessions::ExeServerStartSession(
-    FOnStartSessionCompleteDelegate&& FoDelegate,
-    FName FsSessionName,
-    const FOnlineSessionSettings& FoSessionSettings)
+URpSessions::ExeServerStartSession(FOnStartSessionCompleteDelegate&& FoDelegate, const FRossSessionSettings& FoSessionSettings)
 {
     // called right before moving to the main map+mode (no more joining after this state)
     // In dedicated open-world, both Create+Start are used at the same time
-    Print("Starting SessionName: ", FsSessionName);
+    const auto LsSessionName = FName(*FoSessionSettings.MsSessionName);
+    Print("Starting SessionName: ", LsSessionName);
     auto& OSS = GetIOnlineSubsytem();
     auto Session = GetSessionPtr(OSS);
     auto LoResultPtr = MakeShared<TNetResult<void, FOnStartSessionCompleteDelegate>>();
@@ -271,13 +271,13 @@ URpSessions::ExeServerStartSession(
     *CallbackHandle =
         Session->AddOnStartSessionCompleteDelegate_Handle(FOnStartSessionCompleteDelegate::CreateWeakLambda(
             this,
-            [Session, CallbackHandle, FsSessionName, ResultWk = TWeakPtr<TNetResult<void, FOnStartSessionCompleteDelegate>>(LoResultPtr)]
+            [Session, CallbackHandle, LsSessionName, ResultWk = TWeakPtr<TNetResult<void, FOnStartSessionCompleteDelegate>>(LoResultPtr)]
             (
                 FName CallbackSessionName,
                 bool bCallbackWasSuccessful) 
             {
                     // Check if this callback is for us.
-                    if (!FsSessionName.IsEqual(CallbackSessionName))
+                    if (!LsSessionName.IsEqual(CallbackSessionName))
                     {
                         // This callback isn't for our call.
                         return;
@@ -289,7 +289,7 @@ URpSessions::ExeServerStartSession(
                         bCallbackWasSuccessful 
                             ? TEXT("") 
                             : TEXT("Start session operation failed."),
-                        FsSessionName,           // delegate 1st arg
+                        LsSessionName,           // delegate 1st arg
                         bCallbackWasSuccessful); // delegate 2nd arg
 
                     // Unregister this callback since we've handled the call we care about.
@@ -297,10 +297,10 @@ URpSessions::ExeServerStartSession(
             }));
 
     // Start the session.
-    if (!Session->StartSession(FsSessionName))
+    if (!Session->StartSession(LsSessionName))
     {
         constexpr auto LbSuccessful = false;
-        PrintW("StartSession() call failed to start. FsSessionName = ", FsSessionName);
+        PrintW("StartSession() call failed to start. LsSessionName = ", LsSessionName);
         Session->ClearOnStartSessionCompleteDelegate_Handle(*CallbackHandle);
     }
     return LoResultPtr;
@@ -354,13 +354,17 @@ sp<TNetResult<>> URpSessions::ExeServerTravelToMapAndMode(const FOnlineSessionSe
 
     auto Result = MakeThreadPtr(TNetResult<>);
 
-    FString LsMapPath, LsGameMode, LsPort;
-    ensure(FoSettings.Get(TEXT("MAP"), LsMapPath));
-    ensure(FoSettings.Get(TEXT("GAMEMODE"), LsGameMode));
-    ensure(FoSettings.Get(TEXT("PORT"), LsPort));
+    FString LsMapPath, LsModePath;
+    int32 LnPort = 0;
+    ensure(FoSettings.Get(TEXT("MAP_PATH"),  LsMapPath));
+    ensure(FoSettings.Get(TEXT("MODE_PATH"), LsModePath));
+    ensure(FoSettings.Get(TEXT("PORT"), LnPort));
+    ensure(LnPort > 0);
 
-    Print("\nMap: ", LsMapPath, "\n GameMode: ", LsGameMode, "\n Port: ", LsPort);
-    FString TravelURL = FString::Printf(TEXT("%s?listen?Game=%s"), *LsMapPath, *LsGameMode);
+    auto LsPlayerName = GetWorld()->GetFirstPlayerController()->GetPlayerState<APlayerState>()->GetPlayerName();
+
+    Print("\nMap: ", LsMapPath, "\n GameMode: ", LsModePath, "\n Port: ", LnPort);
+    FString TravelURL = FString::Printf(TEXT("%s?listen&Player=%s&Game=%s"), *LsMapPath, *LsPlayerName, *LsModePath);
     Print("TravelURL: ", TravelURL);
     bool LbSuccess = LoWorld.ServerTravel(TravelURL);
     if (!LbSuccess)

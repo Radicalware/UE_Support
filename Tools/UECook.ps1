@@ -63,7 +63,7 @@ class Core
         Write-Host "Then you can save to newer versions"
         Write-Host "Then you cook content"
 
-        $This.ArchiveDirectory = "$ProjectRoot\Artifacts\Win64"
+        # $This.ArchiveDirectory = "$ProjectRoot\ArchivedBuilds"
 
         if ($This.MoRunParams.Development) {
             $This.MsMethod = [Core]::Development
@@ -142,7 +142,7 @@ class Core
             "-compressed",
             "-package", 
             "-archive",
-            "-archivedirectory=`"$($This.ArchiveDirectory)`"" # fine for both client & server
+            # "-archivedirectory=`"$($This.ArchiveDirectory)`"" # fine for both client & server
             "-MSBuildArgs=`"/p:TreatWarningsAsErrors=false /p:NoWarn=NU1900 /p:NoWarn=NU1901 /p:NoWarn=NU1902 /p:NoWarn=NU1903 /p:NoWarn=NU1904`""
         )
 
@@ -176,18 +176,17 @@ class Core
         $LvAargs = @(
             "BuildCookRun",
             "-project=`"$($This.UProjectPath)`"",
-            "-noP4"
-            "-platform=Win64"
-            "-clientconfig=Development"
-            "-target=TheGame"
-            "-build"
-            "-cook"
-            "-stage"
-            "-package"
-            "-pak"
+            "-noP4",
+            "-platform=Win64",
+            "-clientconfig=Development",
+            "-target=TheGame",
+            "-build",
+            "-cook",
+            "-stage",
+            "-package",
+            "-pak",
             "-iostore"
-            "-archive"
-            "-archivedirectory=`"$($This.ArchiveDirectory)`""
+            # "-archive", "-archivedirectory=`"$($This.ArchiveDirectory)`""
         )
 
         $LsCommandArgs =  [Core]::JoinWithSpaces($LvAargs)

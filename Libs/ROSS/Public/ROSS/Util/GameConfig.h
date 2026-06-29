@@ -46,19 +46,34 @@ public:
 
     void SetMapModeFromCLI();
 
-    void SetMapPath(const FString& FsMapPath);
-    void SetModePath(const FString& FsModePath);
+          void  SetSessionName(const FString& FsSessionName) { MsSessionName = FsSessionName; }
+    const auto& GetSessionName() const { return MsSessionName; }
+
+          void  SetMapPath(const FString& FsMapPath);
+    const auto& GetMap()  const { return MsMap; }
+
+          void  SetModePath(const FString& FsModePath);
+    const auto& GetMode() const { return MsMode; }
+
+          void  SetMaxPublicPlayers(int32 InMaxPlayers) { MnMaxPublicPlayers = InMaxPlayers; }
+    const auto& GetMaxPublicPlayers() const { return MnMaxPublicPlayers; }
+    
+          void  SetMaxPrivatePlayers(int32 InMaxPlayers) { MnMaxPrivatePlayers = InMaxPlayers; }
+    const auto& GetMaxPrivatePlayers() const { return MnMaxPrivatePlayers; }
 
     auto GetGamePort() const { return MnGamePort; }
     void SetGamePort(uint32 InPort) { MnGamePort = InPort; }
-    const auto& GetMap()  const { return MsMap; }
-    const auto& GetMode() const { return MsMode; }
+    
     const auto& GetMapPath()  const { return MsMapPath; }
     const auto& GetModePath() const { return MsModePath; }
 
     const auto BxHasValues() const { return !MsMapPath.IsEmpty() && !MsModePath.IsEmpty(); }
 
 private:
+    FString MsSessionName;
+    int32   MnMaxPublicPlayers  = 0;
+    int32   MnMaxPrivatePlayers = 0;
+
     FString MsMapPath;
     FString MsModePath;
 

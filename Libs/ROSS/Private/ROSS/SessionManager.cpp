@@ -58,23 +58,20 @@ void ASessionManager::Tick(float DeltaSeconds)
 void ASessionManager::SetServerArguments()
 {
     PrintStart();
-    if (GetWorld()->GetNetMode() == ENetMode::NM_DedicatedServer){
-        Print("Is a Dedicated Server");
-        bUsingDedicatedServer = true;
+    if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer){
+        throw BBB("needs to be a dedicated server")
     }
-    else {
-        Print("Not a Dedicated Server");
-        bUsingDedicatedServer = false;
-    }
+    bUsingDedicatedServer = true;
 
     FString MaxPlayersStr;
     MaxPlayers = FParse::Value(FCommandLine::Get(), TEXT("MaxPlayers="), MaxPlayersStr);
     int32 LnServerPort = 7777;  // defualt
     FParse::Value(FCommandLine::Get(), TEXT("-port="), LnServerPort);
+    ensure(LnServerPort > 0);
     SetPort(LnServerPort);
     auto LsSessionName = FString(TEXT("GameSession_")) + FString::FromInt(LnServerPort);
     SetSessionName(LsSessionName);
-    SetSessionSettings(GetWorld());
+    //SetSessionSettings(GetWorld()); // TODO: the map/mode should be added as arguments to SetServerArguments()
     ensure(SessionName == SsSessionName);
     ensure(MaxPlayers > 0);
 }
@@ -93,22 +90,34 @@ void ASessionManager::InitOptions(const FString& Options)
     PrintStart();
     if(GetWorld()->GetNetMode() == ENetMode::NM_DedicatedServer)
     {
-        Print("InitOptions: From SessionName: ", SsSessionName);
-        //SetServerArguments();
+        if (SsSessionName == SsSessionNameUnset)
+        {
+            int32 LnServerPort = 7777;  // defualt
+            FParse::Value(FCommandLine::Get(), TEXT("-port="), LnServerPort);
+            ensure(LnServerPort > 0);
+            SetPort(LnServerPort);
+            auto LsSessionName = FString(TEXT("GameSession_")) + FString::FromInt(LnServerPort);
+            SetSessionName(LsSessionName);
+            // SetSessionSettings(GetWorld(), FoGameConfig); // TODO: needs game config
+        }
+        else {
+            SessionName = SsSessionName;
+        }
 
-        int32 LnServerPort = 7777;  // defualt
-        FParse::Value(FCommandLine::Get(), TEXT("-port="), LnServerPort);
-        SetPort(LnServerPort);
-        auto LsSessionName = FString(TEXT("GameSession_")) + FString::FromInt(LnServerPort);
-        SetSessionName(LsSessionName);
-        SetSessionSettings(GetWorld());
         Print("InitOptions: Now  SessionName: ", SsSessionName);
-    }
+    }else
+        SessionName = SsSessionName;
 }
 
-void ASessionManager::SetSessionSettings(UWorld* FoWorldPtr)
+void ASessionManager::SetSessionSettings(UWorld* FoWorldPtr, const FGameConfig& FoGameConfig)
 {
     PrintStart();
+    SoSettings = FRossSessionSettings(FoGameConfig);
+
+    if(!ensure(SessionName == SsSessionName)) // sanity to ensure it is still holding up
+        Print("(SessionName: ", SessionName, ") != (SsSessionName: ", SsSessionName, ")");
+    SetSessionName(SoSettings.MoGameConfig.GetSessionName());
+    ensure(SessionName == SsSessionName);
 
     GET(IOSS, Online::GetSubsystem(FoWorldPtr));
     GET(ISession, IOSS.GetSessionInterface());
@@ -118,24 +127,22 @@ void ASessionManager::SetSessionSettings(UWorld* FoWorldPtr)
         ISession.DestroySession(GetSessionName());
     }
 
-    int32 LnMaxPlayers = 4;
     if (bUsingDedicatedServer) 
     {
         FString MaxPlayersStr;
         FParse::Value(FCommandLine::Get(), TEXT("MaxPlayers="), MaxPlayersStr);
-        LnMaxPlayers = XF::StringToInt(MaxPlayersStr);
-        ensure(LnMaxPlayers > 0);
+        SoSettings.MoGameConfig.SetMaxPublicPlayers(XF::StringToInt(MaxPlayersStr));
+        ensure(SoSettings.MoGameConfig.GetMaxPublicPlayers() > 0);
         // MaxPlayers = LnMaxPlayers; // static function
-    }
 
-    const bool bPersistentWorld = FParse::Param(FCommandLine::Get(), TEXT("PersistentWorld"));
-    Print("Persistent World: ", bPersistentWorld);
-    SoSettings = FRossSessionSettings();
-    SoSettings.NumPublicConnections = LnMaxPlayers;
-    SoSettings.NumPrivateConnections = 0; // invite only
+        SoSettings.NumPublicConnections = SoSettings.MoGameConfig.GetMaxPublicPlayers();
+        SoSettings.NumPrivateConnections = SoSettings.MoGameConfig.GetMaxPrivatePlayers();
+    }
 
     SoSettings.bUsesStats = false; // TODO: switch to true for database updates
 
+    const bool bPersistentWorld = FParse::Param(FCommandLine::Get(), TEXT("PersistentWorld"));
+    Print("Persistent World: ", bPersistentWorld);
     if (bPersistentWorld)
     {
         SoSettings.bAllowJoinInProgress = true;
@@ -171,17 +178,21 @@ void ASessionManager::SetSessionSettings(UWorld* FoWorldPtr)
     SoSettings.BuildUniqueId = FMath::RandRange(1, INT32_MAX); // 0 means non-searchable
     // TODO: ensure we don't accidentally get the same value 2x for the same server
 
-    //ensure(SessionName == SsSessionName);
-    //Print("Set SessionName: ", SessionName);
-
     SoSettings.InitUniqueBuildID();
     if (bUsingDedicatedServer) {
         SoSettings.MoGameConfig.SetMapModeFromCLI();
     }
     else if(SoSettings.MoGameConfig.BxHasValues() == false) {
         PrintW("No MAP & MODE values set");
-        throw BBB("No MAP & MODE values set - use -map=MAPNAME -mode=MODENAME");
     }
+}
+
+void ASessionManager::SetSessionName(const FString& FsSessionName)
+{
+    SsSessionName = FName(*FsSessionName); 
+    SessionName = SsSessionName;
+    SoSettings.MsSessionName = FsSessionName;
+    Print("SoSettings.MsSessionName = ", SoSettings.MsSessionName)
 }
 
 void ASessionManager::RegisterServer()
@@ -507,10 +518,10 @@ void ASessionManager::P2PCreateSession()
     }
     GET(Ross);
 
-    SoResults.MoCreateSessionPtr = Ross.GetSessions().ExeServerCreateSession(
-        FOnCreateSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnCreateSessionComplete),
-        SessionName,
-        SoSettings);
+    //SoResults.MoCreateSessionPtr = Ross.GetSessions().ExeServerCreateSession(
+    //    FOnCreateSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnCreateSessionComplete),
+    //    SessionName,
+    //    SoSettings);
 }
 
 void ASessionManager::CreateSession()
@@ -573,7 +584,6 @@ void ASessionManager::ServerStartSession()
 
     SoResults.MoStartSessionPtr = Ross.GetSessions().ExeServerStartSession(
         FOnStartSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnStartSessionComplete),
-        SessionName,
         SoSettings);
 }
 
@@ -607,7 +617,6 @@ void ASessionManager::P2PStartSession()
 
     SoResults.MoStartSessionPtr = Ross.GetSessions().ExeServerStartSession(
         FOnStartSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnStartSessionComplete),
-        SessionName,
         SoSettings);
 }
 
@@ -620,9 +629,9 @@ void ASessionManager::StartSession()
         P2PStartSession();
 
     if (SoResults.MoStartSessionPtr->BxSuccessful())
-        Print("P2P Session started successfully: ", SessionName)
+        Print("Session started successfully: ", SessionName)
     else
-        PrintW("Failed to start P2P session: ", SessionName)
+        PrintW("Failed to start session: ", SessionName)
 }
 
 void ASessionManager::OnStartSessionComplete(FName InSessionName, bool bWasSuccessful)
@@ -662,7 +671,7 @@ void ASessionManager::ServerTravelListen(const FString& FsMapPath, const FString
 
     GET(LoWorld, GetWorld());
     auto LsPort = FString::FromInt(GetGameConfig().MnGamePort);
-    auto LsTravel = FString::Printf(TEXT("%s?listen?game=%s"), *GetGameConfig().GetMapPath(), *GetGameConfig().GetModePath());
+    auto LsTravel = FString::Printf(TEXT("%s?listen&game=%s"), *GetGameConfig().GetMapPath(), *GetGameConfig().GetModePath());
     if (LsTravel == SsTravel)
         return;
     SsTravel = LsTravel;
@@ -742,12 +751,7 @@ void ASessionManager::RegisterPlayer(APlayerController* NewPlayerPtr, const FUni
         return;
     }
     SvSessionPlayers.Add(UniqueId);
-    FName LoSessionName = NAME_GameSession;
-    if (SessionInterface.GetNamedSession(SessionName))
-    {
-        LoSessionName = SessionName;
-    }
-    SessionInterface.RegisterPlayer(LoSessionName, *UniqueId, bWasFromInvite);
+    SessionInterface.RegisterPlayer(SsSessionName, *UniqueId, bWasFromInvite);
 }
 
 bool ASessionManager::AtCapacity(bool bSpectator)
@@ -860,8 +864,7 @@ void ASessionManager::Restart()
     PrintStart()
     GET(World, GetWorld());
     PrintW("\n\nMap: ", GetGameConfig().GetMapPath(), "\n GameMode: ", GetGameConfig().GetModePath(), "\n Port: ", GetGameConfig().GetGamePort(), "\n");
-    FString TravelURL = FString::Printf(TEXT("%s?listen&Game=%s"), *GetGameConfig().GetMapPath(), *GetGameConfig().GetModePath());
-    World.ServerTravel(TravelURL);
+    throw BBB("Not Programed Yet");
 }
 
 int32 ASessionManager::GetSteamAppID() const
@@ -964,7 +967,6 @@ void ASessionManager::OnSteamServersConnected(SteamServersConnected_t* pCallback
     if (!bLoggedOnce)
     {
         bLoggedOnce = true;
-        SessionName = SsSessionName;
         ensure(SsSessionName == SessionName);
         Print("Steam Game Server: Connected to Steam!");
         Print("SteamID: ", FString::Printf(TEXT("%llu"), SteamGameServer()->GetSteamID().ConvertToUint64()));
