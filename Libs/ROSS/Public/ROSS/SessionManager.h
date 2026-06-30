@@ -44,18 +44,6 @@ class THEGAME_API ASessionManager : public AGameSession
     STEAM_GAMESERVER_CALLBACK(ASessionManager, OnGSPolicyResponse, GSPolicyResponse_t);
     STEAM_CALLBACK(ASessionManager, OnLobbyCreated, LobbyCreated_t);
 #endif
-    struct FResults
-    {
-        sp<TNetResult<void, FOnLoginCompleteDelegate>>         MoLoginPtr;
-        sp<TNetResult<void, FOnCreateSessionCompleteDelegate>> MoCreateSessionPtr;
-        sp<TNetResult<void, FOnStartSessionCompleteDelegate>>  MoStartSessionPtr;
-
-        INL auto& GetLogin()         { return *MoLoginPtr; }
-        INL auto& GetCreateSession() { return *MoCreateSessionPtr; }
-        INL auto& GetStartSession()  { return *MoStartSessionPtr; }
-    };
-    INL static FResults SoResults;
-
     UPROPERTY() TWeakObjectPtr<AROSS> RossPtr = nullptr;
 
 public:
@@ -74,16 +62,20 @@ public:
     virtual void RegisterServer() override;
     UFUNCTION() void RegisterSteamServer();
     UFUNCTION() void OnSteamAuthenticationComplete();
+    UFUNCTION() void CreateSession();
     UFUNCTION() void ServerCreateSession();
     UFUNCTION() void P2PCreateSession();
-    UFUNCTION() void CreateSession();
-    void OnCreateSessionComplete(FName InSessionName, bool bWasSuccessful);
+    UFUNCTION() void OnCreateSessionComplete(FName InSessionName, bool bWasSuccessful);
+    UFUNCTION() void StartSession();
     UFUNCTION() void ServerStartSession();
     UFUNCTION() void P2PStartSession();
-    UFUNCTION() void StartSession();
-    virtual void OnStartSessionComplete(FName InSessionName, bool bWasSuccessful) override;
+    UFUNCTION() void OnStartSessionComplete(FName InSessionName, bool bWasSuccessful) override;
     UFUNCTION() void ServerTravelListen(const FString& FsMapPath = "", const FString& FsModePath = "");
     UFUNCTION() void ServerTravelJoin(const FString& FsMapPath = "", const FString& FsModePath = "");
+
+    UFUNCTION() void EndSession();
+    UFUNCTION() void ServerEndSession();
+    UFUNCTION() void P2PEndSession();
 
     inline static const auto& GetSessionName() { return SsSessionName; }
     inline static auto& GetSettings() { return SoSettings; }

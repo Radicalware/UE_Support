@@ -17,7 +17,7 @@ protected:
     virtual void BeginPlay() override;
 public:
     FString GetCurrentUserDisplayName() const;
-    FUniqueNetIdRepl GetCurrentUserId() const;
+    FUniqueNetIdRepl GetUniqueNetId() const;
     FString GetCurrentUserSecondaryId() const;
     bool ShouldRenderUserSecondaryIdField() const;
     FString GetCurrentUserAuthAttribute(const FString &Key) const;

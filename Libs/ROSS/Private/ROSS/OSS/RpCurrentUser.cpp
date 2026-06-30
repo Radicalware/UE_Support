@@ -20,23 +20,27 @@ FString URpCurrentUser::GetCurrentUserDisplayName() const
     return GetIdentity().GetPlayerNickname(LocalUserNum);
 }
 
-FUniqueNetIdRepl URpCurrentUser::GetCurrentUserId() const
+FUniqueNetIdRepl URpCurrentUser::GetUniqueNetId() const
 {
     return GetNetUserID(); // Identity->GetUniquePlayerId(LocalUserNum);
 }
 
 FString URpCurrentUser::GetCurrentUserSecondaryId() const
 {
+    if (!ShouldRenderUserSecondaryIdField())
+        return TEXT("");
     auto UserAccount = GetIdentity().GetUserAccount(*GetNetUserID());
     checkf(UserAccount.IsValid(), TEXT("Expected GetUserAccount to return a valid account."));
     FString Value;
     return UserAccount->GetAuthAttribute(TEXT("epic.accountId"), Value) ? Value : TEXT("");
 }
 
+
 bool URpCurrentUser::ShouldRenderUserSecondaryIdField() const
 {
     auto UserAccount = GetIdentity().GetUserAccount(*GetNetUserID());
-    checkf(UserAccount.IsValid(), TEXT("Expected GetUserAccount to return a valid account."));
+    if (!UserAccount.IsValid())
+        return false;
     FString Value;
     return UserAccount->GetAuthAttribute(TEXT("epic.accountId"), Value);
 }

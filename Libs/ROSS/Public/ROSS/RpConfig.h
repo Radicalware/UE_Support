@@ -39,6 +39,9 @@ public:
     const IOnlineIdentityPtr& GetIdentityPtr() const;
     const IOnlineIdentity& GetIdentity() const;
     const FUniqueNetIdPtr& GetNetUserID() const;
+
+    INL const auto GetLocalUserNum() const { return LocalUserNum; }
+
 protected:
     UPROPERTY(
         BlueprintReadOnly,

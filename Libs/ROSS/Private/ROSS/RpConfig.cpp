@@ -21,21 +21,19 @@ void URpConfig::Setup()
     }
     else {
         GET(LoPC, SoWorld.GetFirstPlayerController());
-        GET(LoState, LoPC.PlayerState);
-        LocalUserNum = LoState.GetUniqueID();
+        GET(LoLocalPlayer, LoPC.GetLocalPlayer());
+        LocalUserNum =  LoLocalPlayer.GetControllerId();
     }
 
     MoOnlineSubsytemPtr = Online::GetSubsystem(GetWorld());
     GET(OSS, MoOnlineSubsytemPtr);
     MoIdentityPtr = OSS.GetIdentityInterface();
-    //Print("OSS Name: ", OSS.GetSubsystemName());
     checkf(MoIdentityPtr.IsValid(), TEXT("Expected all online subsystems to implement the identity interface."));
 
     auto* LoControllerPtr = SoWorld.GetFirstLocalPlayerFromController();
     auto LnControllerNum = LoControllerPtr ? LoControllerPtr->GetControllerId() : 0;
 
     MoUserIDPtr = MoIdentityPtr->GetUniquePlayerId(LnControllerNum);
-    //Print("User Is Valid: ", MoUserIDPtr.IsValid())
     if (SoWorld.GetNetMode() != NM_DedicatedServer) {
         ensure(MoUserIDPtr.IsValid() && "The local user is not signed in.");
     }

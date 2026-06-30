@@ -51,14 +51,6 @@ void ATracker::DbgExit(const FName& FunctionName, const uint32 LineMacro, const 
 
 void ATracker::Slingshot(UWorld* WorldPtr, const char* FunctionName)
 {
-    if (!IsInGameThread())
-    {
-        AsyncTask(ENamedThreads::GameThread, [this, WorldPtr, FunctionName]() {
-            Slingshot(WorldPtr, FunctionName);
-        });
-        return;
-    }
-
     GetRef(LoWorld, WorldPtr, void());
     NullEnsure(User, void());
     if (!ensure(strlen(FunctionName) != 0))

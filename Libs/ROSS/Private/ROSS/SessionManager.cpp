@@ -7,6 +7,7 @@
 #include "Access/General.h"
 #include "ROSS/OSS/RpAuth.h"
 #include "ROSS/OSS/RpSessions.h"
+#include "ROSS/OSS/RpCurrentUser.h"
 #include "ROSS/Util/NetResult.h"
 // -----------------------------------------------
 // Engine
@@ -107,6 +108,8 @@ void ASessionManager::InitOptions(const FString& Options)
         Print("InitOptions: Now  SessionName: ", SsSessionName);
     }else
         SessionName = SsSessionName;
+    RossPtr = AROSS::GetRossPtr();
+    ensure(RossPtr != nullptr);
 }
 
 void ASessionManager::SetSessionSettings(UWorld* FoWorldPtr, const FGameConfig& FoGameConfig)
@@ -198,25 +201,26 @@ void ASessionManager::SetSessionName(const FString& FsSessionName)
 void ASessionManager::RegisterServer()
 {
     PrintStart();
+    Super::RegisterServer();
     if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer) {
         PrintW("Not a dedicated server - skipping server registration");
         return;
     }
     if (SeState != EState::None) {
+        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::None);
         return;
     }
     Print("Registering Server...");
-    ensure(SsSessionName == SessionName);
-    InitTracker(MoTrackSubsystemReady);
 
     GET(LoWorld, GetWorld());
-
     if (LoWorld.GetNetMode() != NM_DedicatedServer) {
         PrintE("Not a Dedicated Server");
         return;
     }
 
     Print("Dedicated Server Starting!!");
+    constexpr uint32 LnDelaySecs = 5; // give time for server to initialize
+    ATracker::DelayAction(GetWorld(), this, "RegisterSteamServer", LnDelaySecs);
 }
 
 void ASessionManager::RegisterSteamServer()
@@ -230,6 +234,7 @@ void ASessionManager::RegisterSteamServer()
     }
 
     if (SeState != EState::None) {
+        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::None);
         return;
     }
     Print("Registering Steam Server...");
@@ -326,10 +331,10 @@ void ASessionManager::RegisterSteamServer()
 void ASessionManager::OnSteamAuthenticationComplete()
 {
     PrintStart();
-    SeState = EState::RegisterServer;
     if(bSteamAuthenticated){
         return;
     }
+    SeState = EState::RegisterServer;
     ensure(SsSessionName == SessionName);
 
     bool LbSuccess = true;
@@ -348,12 +353,13 @@ void ASessionManager::OnSteamAuthenticationComplete()
         LbSuccess = false;
         Print("GetWorld == NULL");
     }
-    if (!SteamGameServer()->BLoggedOn())
+    GET(LoSteamServer, SteamGameServer());
+    if (!LoSteamServer.BLoggedOn())
     {
         LbSuccess = false;
         PrintW("Steam authentication failed - not logged on");
     }
-    if (!SteamGameServer()->GetSteamID().IsValid())
+    if (!LoSteamServer.GetSteamID().IsValid())
     {
         LbSuccess = false;
         PrintW("Steam authentication failed - invalid SteamID");
@@ -363,47 +369,33 @@ void ASessionManager::OnSteamAuthenticationComplete()
         PrintW("Steam authentication failed - OnlineSubsystem is not STEAM");
     }
 
-    if (LbSuccess && SteamGameServer()->BLoggedOn())
+    if (LbSuccess && LoSteamServer.BLoggedOn())
     {
         Print("Steam authentication complete - ready to create session: ", SessionName);
 
         // Get the Steam Online Subsystem
         IOnlineSubsystem* OnlineSubsystem = IOnlineSubsystem::Get(STEAM_SUBSYSTEM);
-        if (OnlineSubsystem)
+
+        GET(LoOnlineSubsystem, IOnlineSubsystem::Get(STEAM_SUBSYSTEM));
+        GET(LoSteamSubsystem, static_cast<FOnlineSubsystemSteam*>(LoOnlineSubsystemPtr));
+
+        bool bSuccess = LoSteamSubsystem.InitSteamworksServer();
+        if (bSuccess)
         {
-            FOnlineSubsystemSteam* SteamSubsystem = static_cast<FOnlineSubsystemSteam*>(OnlineSubsystem);
-            if (SteamSubsystem)
-            {
-                // Call InitSteamworksServer() to initialize the server-side Steam APIs
-                bool bSuccess = SteamSubsystem->InitSteamworksServer();
-                if (bSuccess)
-                {
-                    UE_LOG(LogTemp, Log, TEXT("Steam server API initialized successfully."));
-                    Print("Waiting for Steam Game Server authentication callback...");
-                    //SteamGameServer()->LogOnAnonymous();
-                    InitTracker(MoTrackSubsystemReady);
-                    GET(MoTrackSubsystemReady);
-                    MoTrackSubsystemReady.Slingshot(AROSS::GetWorldPtr(), "ASessionManager::CreateSession");
-                }
-                else
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("Failed to initialize Steam server API."));
-                    LbSuccess = false;
-                }
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("Steam subsystem is not available."));
-                LbSuccess = false;
-            }
+            UE_LOG(LogTemp, Log, TEXT("Steam server API initialized successfully."));
+            Print("Waiting for Steam Game Server authentication callback...");
+            //LoSteamServer.LogOnAnonymous();
+            InitTracker(MoTrackSubsystemReady);
+            GET(MoTrackSubsystemReady);
+            MoTrackSubsystemReady.Slingshot(AROSS::GetWorldPtr(), "ASessionManager::CreateSession");
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("Online subsystem (Steam) not found."));
+            UE_LOG(LogTemp, Warning, TEXT("Failed to initialize Steam server API."));
             LbSuccess = false;
         }
     }
-    else if(SteamGameServer()->BLoggedOn())
+    else if(LoSteamServer.BLoggedOn())
     {
         PrintW("Steam authentication failed - cannot create session: ", SessionName);
         LbSuccess = false;
@@ -421,9 +413,25 @@ void ASessionManager::OnSteamAuthenticationComplete()
     }
 }
 
+void ASessionManager::CreateSession()
+{
+    PrintStart();
+    if (GetWorld()->GetNetMode() == ENetMode::NM_DedicatedServer)
+    {
+        SetServerArguments();
+        ServerCreateSession();
+    }
+    else
+        P2PCreateSession();
+}
+
 void ASessionManager::ServerCreateSession()
 {
     PrintStart();
+    if (SeState != EState::RegisterServer) {
+        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::RegisterServer);
+        return;
+    }
     if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer) {
         PrintW("Not a dedicated server - skipping server registration");
         return;
@@ -462,81 +470,46 @@ void ASessionManager::ServerCreateSession()
     }
 
     RossPtr = AROSS::GetRossPtr();
-    if (SeState != EState::RegisterServer) {
-        return;
-    }
 
     GET(Ross);
     ensure(SsSessionName == SessionName);
-
-    //auto LoDelegate = FOnCreateSessionCompleteDelegate();
-    //LoDelegate.BindUObject(this, &ASessionManager::OnCreateSessionComplete);
-
-    //SoResults.MoCreateSessionPtr = Ross.GetSessions().ExeServerCreateSession(
-    //    LoDelegate,
-    //    SessionName,
+    // auto LoResultPtr = Ross.GetSessions().ExeServerCreateSession(
+    //    FOnCreateSessionCompleteDelegate(),
     //    SoSettings);
 
 
-    // Use Steam API to create session
-    // ---------------------------------------------------------------------------------
     SteamGameServer()->SetAdvertiseServerActive(true);
-    SeState = EState::StartSession; // Only because this is the last stage for steam
-    Print("Slingshot");
-    GET(MoTrackSubsystemReady);
-
-    MoTrackSubsystemReady.Slingshot(GetWorld(), "ServerTravelListen");
     bSteamAuthenticated = true;
-    // ---------------------------------------------------------------------------------
-
-    //if (SteamMatchmaking())
-    //{
-    //    ELobbyType lobbyType = SoSettings.bShouldAdvertise ? k_ELobbyTypePublic : k_ELobbyTypePrivate;
-    //    SteamAPICall_t call = SteamMatchmaking()->CreateLobby(lobbyType, MaxPlayers);
-    //    if (call != k_uAPICallInvalid)
-    //    {
-    //        Print("Creating lobby...");
-    //        // The callback will handle the result
-    //    }
-    //    else
-    //    {
-    //        PrintW("Failed to initiate lobby creation");
-    //    }
-    //}
-    //else
-    //{
-    //    PrintW("SteamMatchmaking not available");
-    //}
 }
 
 void ASessionManager::P2PCreateSession()
 {
-    PrintStart()
-    if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer) {
-        PrintW("Not a client - skipping P2P session creation");
+    PrintStart();
+    if (GetWorld()->GetNetMode() == ENetMode::NM_DedicatedServer) {
+        PrintW("Should be a Client NOT a dedicated server in P2P Sessions");
         return;
     }
+    if (SeState != EState::None) {
+        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::None);
+        return;
+    }
+    ensure(SsSessionName == SessionName);
+
+    RossPtr = AROSS::GetRossPtr();
     GET(Ross);
+    auto LoResultsPtr = Ross.GetSessions().ExeServerCreateSession(
+        FOnCreateSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnCreateSessionComplete),
+        SoSettings);
 
-    //SoResults.MoCreateSessionPtr = Ross.GetSessions().ExeServerCreateSession(
-    //    FOnCreateSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnCreateSessionComplete),
-    //    SessionName,
-    //    SoSettings);
-}
-
-void ASessionManager::CreateSession()
-{
-    PrintStart();
-    SetServerArguments(); // safety one more time && checks
-    if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer)
-        ServerCreateSession();
+    if (LoResultsPtr.IsValid()) {
+        Print("P2P Session creation initiated: UMainMenu Local P2P Session")
+            if (LoResultsPtr->BxSuccessful())
+                Print("P2P Session created successfully: UMainMenu Local P2P Session")
+            else
+                PrintW("Failed to create P2P session: UMainMenu Local P2P Session")
+    }
     else
-        P2PCreateSession();
-
-    if (SoResults.MoCreateSessionPtr->BxSuccessful())
-        Print("P2P Session created successfully: ", SessionName)
-    else
-        PrintW("Failed to create P2P session: ", SessionName)
+        PrintW("Failed to initiate P2P session creation: UMainMenu Local P2P Session");
 }
 
 void ASessionManager::OnCreateSessionComplete(FName InSessionName, bool bWasSuccessful)
@@ -546,12 +519,20 @@ void ASessionManager::OnCreateSessionComplete(FName InSessionName, bool bWasSucc
     if (bWasSuccessful) {
         Print("Session ", InSessionName, " Created successfully.");
         SeState = EState::CreateSession;
-        // StartSession();
+        StartSession();
     }
     else {
-        PrintW("Failed to start session ", InSessionName, ".");
-        // CreateSession();
+        PrintW("Failed to create session ", InSessionName, ".");
     }
+}
+
+void ASessionManager::StartSession()
+{
+    PrintStart();
+    if (GetWorld()->GetNetMode() == ENetMode::NM_DedicatedServer)
+        ServerStartSession();
+    else
+        P2PStartSession();
 }
 
 void ASessionManager::ServerStartSession()
@@ -562,6 +543,7 @@ void ASessionManager::ServerStartSession()
         return;
     }
     if (SeState != EState::CreateSession) {
+        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::CreateSession);
         return;
     }
     ensure(SsSessionName == SessionName);
@@ -582,70 +564,53 @@ void ASessionManager::ServerStartSession()
     RossPtr = AROSS::GetRossPtr();
     GET(Ross);
 
-    SoResults.MoStartSessionPtr = Ross.GetSessions().ExeServerStartSession(
+    auto LoResultPtr = Ross.GetSessions().ExeServerStartSession(
         FOnStartSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnStartSessionComplete),
         SoSettings);
 }
 
 void ASessionManager::P2PStartSession()
 {
-    PrintStart();
     if (GetWorld()->GetNetMode() == ENetMode::NM_DedicatedServer) {
-        PrintW("Should be a Client NOT a dedicated server in P2P Sessions");
+        PrintW("P2P, not a dedicated server");
         return;
     }
     if (SeState != EState::CreateSession) {
+        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::CreateSession);
         return;
     }
-    ensure(SsSessionName == SessionName);
 
-    if (GetWorld()
-        && AROSS::InitializeReady(GetWorld())
-        && SteamUser()->BLoggedOn())
-    {
-        SetupRoss();
-    }
-    else {
-        PrintW("Not ready for Start Session");
-        Print("Slingshot");
-        GET(MoTrackSubsystemReady);
-        MoTrackSubsystemReady.Slingshot(GetWorld(), "StartSession");
-        return;
-    }
     RossPtr = AROSS::GetRossPtr();
     GET(Ross);
 
-    SoResults.MoStartSessionPtr = Ross.GetSessions().ExeServerStartSession(
+    auto LoResultPtr = Ross.GetSessions().ExeServerStartSession(
         FOnStartSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnStartSessionComplete),
         SoSettings);
-}
 
-void ASessionManager::StartSession()
-{
-    PrintStart();
-    if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer)
-        ServerStartSession();
-    else
-        P2PStartSession();
 
-    if (SoResults.MoStartSessionPtr->BxSuccessful())
-        Print("Session started successfully: ", SessionName)
+    if (LoResultPtr.IsValid()) {
+        Print("P2P Session start initiated: UMainMenu Local P2P Session")
+            if (LoResultPtr->BxSuccessful())
+                Print("P2P Session started successfully: UMainMenu Local P2P Session")
+            else
+                PrintW("Failed to start P2P session: UMainMenu Local P2P Session")
+    }
     else
-        PrintW("Failed to start session: ", SessionName)
+        PrintW("Failed to initiate P2P session start: UMainMenu Local P2P Session")
 }
 
 void ASessionManager::OnStartSessionComplete(FName InSessionName, bool bWasSuccessful)
 {
     PrintStart();
+    Super::OnStartSessionComplete(InSessionName, bWasSuccessful);
     ensure(SessionName == InSessionName);
     if (bWasSuccessful) {
         Print("Session ", InSessionName, " started successfully.");
         SeState = EState::StartSession;
-        // ServerTravelListen();
+        ServerTravelListen();
     }
     else {
         PrintW("Failed to start session ", InSessionName, ".");
-        // ServerTravelListen();
     }
 }
 
@@ -653,42 +618,22 @@ void ASessionManager::ServerTravelListen(const FString& FsMapPath, const FString
 {
     PrintStart()
     if (SeState != EState::StartSession) {
+        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::StartSession);
         return;
     }
-    SeState = EState::ServerTravelListen;
     ensure(SsSessionName == SessionName);
 
-    if (AGameModeBase* GM = GetWorld()->GetAuthGameMode())
-        GM->bUseSeamlessTravel = true;
-    else {
-        PrintW("No Seamless Travel");
-    }
-
-    if(FsMapPath.IsEmpty() == false)
-        GetGameConfig().SetMapPath(FsMapPath);
-    if (FsModePath.IsEmpty() == false)
-        GetGameConfig().SetModePath(FsModePath);
-
-    GET(LoWorld, GetWorld());
-    auto LsPort = FString::FromInt(GetGameConfig().MnGamePort);
-    auto LsTravel = FString::Printf(TEXT("%s?listen&game=%s"), *GetGameConfig().GetMapPath(), *GetGameConfig().GetModePath());
-    if (LsTravel == SsTravel)
-        return;
-    SsTravel = LsTravel;
-    Print("Server Travel...\n Map: ", GetGameConfig().GetMapPath(), "\n GameMode: ", GetGameConfig().GetModePath(), "\n Port: ", GetGameConfig().GetGamePort(), "\n");
-    Print("SsTravel = ", SsTravel);
-    LoWorld.ServerTravel(SsTravel);
-    Print("Server Travel called with URL: ", SsTravel);
-
-    /// also, make sure you check your query/game ports match your ini file with your CLI input with an ensure()
+    GET(Ross);
+    Ross.GetSessions().ExeServerTravelToMapAndMode(ASessionManager::SoSettings);
+    SeState = EState::ServerTravelListen;
 }
 
 void ASessionManager::ServerTravelJoin(const FString& FsMapPath, const FString& FsModePath)
 {
     PrintStart()
-        if (SeState != EState::StartSession) {
-            return;
-        }
+    if (SeState != EState::StartSession) {
+        return;
+    }
     SeState = EState::ServerTravelListen;
     ensure(SsSessionName == SessionName);
 
@@ -715,6 +660,37 @@ void ASessionManager::ServerTravelJoin(const FString& FsMapPath, const FString& 
 
     PrintW("Client Travel not yet implemented");
     //LoWorld.ClientTravel(SsTravel);
+}
+
+void ASessionManager::EndSession()
+{
+    PrintStart();
+    if (GetWorld()->GetNetMode() == ENetMode::NM_DedicatedServer)
+        ServerEndSession();
+    else
+        P2PEndSession();
+}
+
+void ASessionManager::ServerEndSession()
+{
+    PrintW("Not Programed Yet");
+    throw BBB("Not Programed Yet");
+}
+
+void ASessionManager::P2PEndSession()
+{
+    GET(Ross);
+    GET(LoWorld, GetWorld());
+    GET(LoPC, LoWorld.GetFirstPlayerController());
+
+    if (LoPC.HasAuthority() && IOnlineSubsystem::Get())
+    {
+        auto SessionInterface = IOnlineSubsystem::Get()->GetSessionInterface();
+        if (SessionInterface.IsValid()) {
+            SessionInterface->DestroySession(*ASessionManager::GetSettings().MsSessionName);
+            SeState = EState::None;
+        }
+    }
 }
 
 void ASessionManager::OnAutoLoginComplete(int32 LocalUserNum, bool bWasSuccessful, const FString& Error)
