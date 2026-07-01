@@ -85,7 +85,7 @@ if($Client){
 
 class Core
 {
-    static[string] $SsEditor = "D:\UE\Engines\UnrealEngine\Engine\Build\Archive\Win64\TheGame\Binaries\Win64\UnrealEditor.exe"
+    static[string] $SsEditor = "D:\UE\Engines\UnrealEngine\Engine\Binaries\Win64\UnrealEditor.exe"
     static[string] $SsPort = "7777"
     
     static[string[]] $SvDebugArgs  = @("-log", "-stdout", "-FullStdOutLogOutput")
@@ -244,8 +244,8 @@ class Core
 
     [string] GetServerDebugCMD([string] $FsMap)
     {
-        # $LsBinary = ".\Build\Archive\Win64\TheGame\Binaries\Win64\{0}Server-Win64-DebugGame.exe" -f $This.MsGameName
-        $LsBinary = ".\Build\Archive\Win64\TheGame\Binaries\Win64\{0}Server.exe" -f $This.MsGameName
+        # $LsBinary = ".\Binaries\Win64\{0}Server-Win64-DebugGame.exe" -f $This.MsGameName
+        $LsBinary = ".\Binaries\Win64\{0}Server.exe" -f $This.MsGameName
         $LsPort = "-port=" + [Core]::SsPort
         $LvExecution = @()
         if($FsMap.Length -gt 0)
@@ -270,7 +270,7 @@ class Core
 
     [string] GetP2PDebugCMD([string] $FsMap)
     {
-        $LsBinary = ".\Build\Archive\Win64\TheGame\Binaries\Win64\{0}.exe" -f $This.MsGameName
+        $LsBinary = ".\Binaries\Win64\{0}.exe" -f $This.MsGameName
         $LsPort = "-port=" + [Core]::SsPort
         $LvExecution = @()
         if($FsMap.Length -gt 0)
@@ -295,8 +295,8 @@ class Core
 
     [string] GetClientDebugCMD([string] $FsMap, [string] $IpAddress)
     {
-        # $LsBinary = ".\Build\Archive\Win64\TheGame\Binaries\Win64\{0}-Win64-DebugGame.exe" -f $This.MsGameName
-        $LsBinary = ".\Build\Archive\Win64\TheGame\Binaries\Win64\{0}Client.exe" -f $This.MsGameName
+        # $LsBinary = ".\Binaries\Win64\{0}-Win64-DebugGame.exe" -f $This.MsGameName
+        $LsBinary = ".\Binaries\Win64\{0}Client.exe" -f $This.MsGameName
         $LsPort = "-port=" + [Core]::SsPort
         $LvExecution = @(
             $LsBinary,
