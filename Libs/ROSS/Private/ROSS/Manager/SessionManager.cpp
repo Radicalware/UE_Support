@@ -1,4 +1,4 @@
-#include "ROSS/SessionManager.h"
+#include "ROSS/Manager/SessionManager.h"
 
 // -----------------------------------------------
 // Libs
@@ -24,13 +24,12 @@
 #include "Online/OnlineSessionNames.h"
 #include "OnlineSessionSettings.h"
 #include "OnlineSubsystemTypes.h"
-#include "steam/steam_gameserver.h"
 #include "Misc/ConfigCacheIni.h"
 #include "OnlineSubsystem.h"
-#include "OnlineSubsystemSteam.h"
 #include "OnlineSubsystemUtils.h"
+
 // -----------------------------------------------
-ASessionManager::ASessionManager()
+ASessionManager::ASessionManager() : AGameSession()
 {
     PrintStart();
     SessionName = SsSessionName;
@@ -40,20 +39,13 @@ ASessionManager::~ASessionManager()
 {
     PrintStart();
 
-    Print("Steam shutting down not included (commented out)");
+    Print("Server shutting down not included (commented out)");
     RossPtr = nullptr;
-    //if (SteamGameServer())
-    //{
-    //    SteamGameServer()->LogOff();
-    //    SteamGameServer_Shutdown();
-    //}
 }
 
 void ASessionManager::Tick(float DeltaSeconds)
 {
         Super::Tick(DeltaSeconds);
-        if (bSteamAuthenticated)
-            SteamGameServer_RunCallbacks();
 }
 
 void ASessionManager::SetServerArguments()
@@ -198,10 +190,15 @@ void ASessionManager::SetSessionName(const FString& FsSessionName)
     Print("SoSettings.MsSessionName = ", SoSettings.MsSessionName)
 }
 
+void ASessionManager::SetPort(uint32 FnPort)
+{
+    GetGameConfig().SetGamePort(FnPort);
+}
+
 void ASessionManager::RegisterServer()
 {
     PrintStart();
-    Super::RegisterServer();
+    AGameSession::RegisterServer();
     if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer) {
         PrintW("Not a dedicated server - skipping server registration");
         return;
@@ -220,197 +217,7 @@ void ASessionManager::RegisterServer()
 
     Print("Dedicated Server Starting!!");
     constexpr uint32 LnDelaySecs = 5; // give time for server to initialize
-    ATracker::DelayAction(GetWorld(), this, "RegisterSteamServer", LnDelaySecs);
-}
-
-void ASessionManager::RegisterSteamServer()
-{
-    PrintStart();
-#if USING_STEAM && PLATFORM_WINDOWS
-
-    if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer) {
-        PrintW("Not a dedicated server - skipping server registration");
-        return;
-    }
-
-    if (SeState != EState::None) {
-        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::None);
-        return;
-    }
-    Print("Registering Steam Server...");
-    ensure(SsSessionName == SessionName);
-    InitTracker(MoTrackSubsystemReady);
-
-    if (!SteamGameServer())
-    {
-        PrintE("SteamGameServer() is NULL - cannot register server");
-        return;
-    }
-
-    const bool bAlreadyLoggedOn = SteamGameServer()->BLoggedOn();
-    const uint64 SteamID = SteamGameServer()->GetSteamID().ConvertToUint64();
-
-
-    FParse::Value(FCommandLine::Get(), TEXT("GameServerQueryPort="), GetSteamConfig().MnQueryPort);
-    Print(
-        "Game Port:  ", GetSteamConfig().MnGamePort, " && "
-        "Query Port: ", GetSteamConfig().MnQueryPort
-    )
-
-        Print("Before: SteamGameServer: Valid"
-            , " | LoggedOn: ", (bAlreadyLoggedOn || bSteamAuthenticated)
-            , " | SteamID: ", SteamID
-        );
-    if (!bAlreadyLoggedOn && !bSteamAuthenticated)
-    {
-        Print("First time setup - configuring Steam Game Server...");
-
-
-        int32 GameServerGamePort = 0;
-        int32 GameServerQueryPort = 0;
-        FString PortString;
-
-        //if (GConfig->GetString(TEXT("URL"), TEXT("Port"), PortString, GEngineIni))
-        //    GameServerGamePort = FCString::Atoi(*PortString);
-        //ensure(SoSteamConfig.MnGamePort == GameServerGamePort);
-
-        //if (GConfig->GetString(TEXT("OnlineSubsystemSteam"), TEXT("GameServerQueryPort"), PortString, GEngineIni))
-        //    GameServerQueryPort = FCString::Atoi(*PortString);
-        //ensure(SoSteamConfig.MnQueryPort == GameServerQueryPort);
-
-        ensure(SteamGameServer_Init(
-            GetSteamConfig().unIP,        // 0 = bind to all interfaces (most common)
-            GetSteamConfig().MnGamePort,  // Game Port
-            GetSteamConfig().MnQueryPort, // Query Port
-            EServerMode::eServerModeAuthenticationAndSecure,
-            "1.0.0.0" // Version string
-        ));
-         
-        // Set all properties BEFORE logging on
-        SteamGameServer()->SetProduct("DeadDread");
-        SteamGameServer()->SetGameDescription("Hord Game");
-        SteamGameServer()->SetDedicatedServer(true);
-        SteamGameServer()->SetServerName(XF::FStringToRValChars(SessionName));
-        SteamGameServer()->SetMapName(XF::FStringToRValChars(GetGameConfig().GetMap()));
-        SteamGameServer()->SetMaxPlayerCount(MaxPlayers);
-        SteamGameServer()->SetPasswordProtected(false);
-        SteamGameServer()->SetRegion("na"); // North America
-        SteamGameServer()->SetGameTags("Default,PVE");
-        SteamGameServer()->SetGameData(TCHAR_TO_UTF8(*FString::Printf(TEXT("Mode=%s;Map=%s"), 
-            *GetGameConfig().GetMode(), 
-            *GetGameConfig().GetMap())));
-        SteamGameServer()->SetKeyValue("PORT", XF::FStringToRValChars(FString::FromInt(GetGameConfig().GetGamePort())));
-
-        //Print("Waiting for Steam Game Server authentication callback...");
-         SteamGameServer()->LogOnAnonymous();
-    }
-    else
-    {
-        Print("Already logged on - updating server properties");
-
-        // Only update dynamic properties
-        SteamGameServer()->SetMapName(XF::FStringToRValChars(GetGameConfig().GetMap()));
-        SteamGameServer()->SetServerName(XF::FStringToRValChars(SessionName));
-        SteamGameServer()->SetKeyValue("PORT", XF::FStringToRValChars(FString::FromInt(GetGameConfig().GetGamePort())));
-        Print("Server updated and advertising");
-    }
-#else
-    PrintW("Steam Game Server not available (non-Steam build)");
-#endif
-    ensure(SsSessionName == SessionName);
-}
-
-// Highly liklely the reaosn you have double auth completes is because the engine
-// is already making you logon. So check the RpAuth and see if that is triggering this.
-// Also, if it isn't then see if removing your steam init/logon fix these double connection issues
-// when you fix the double connect, then maybe your sessions will start correctly.
-// Remember, you never needed this much manual work when you did the GDTV version of Steam Sessions.
-// The only difference between a dedicated server and a regular one is that one of them just doesn't have a player
-// It shouldn't require huge amounts of custom work-arounds
-
-void ASessionManager::OnSteamAuthenticationComplete()
-{
-    PrintStart();
-    if(bSteamAuthenticated){
-        return;
-    }
-    SeState = EState::RegisterServer;
-    ensure(SsSessionName == SessionName);
-
-    bool LbSuccess = true;
-    RossPtr = AROSS::GetRossPtr();
-
-    GET(Ross);
-    Ross.SetupPostLogin(); // 2nd time just in case
-    auto LoWorld = GetWorld();
-    if(Ross.BxReady() == false)
-    {
-        LbSuccess = false;
-        Print("ROSS not ready");
-    }
-    if (!LoWorld)
-    {
-        LbSuccess = false;
-        Print("GetWorld == NULL");
-    }
-    GET(LoSteamServer, SteamGameServer());
-    if (!LoSteamServer.BLoggedOn())
-    {
-        LbSuccess = false;
-        PrintW("Steam authentication failed - not logged on");
-    }
-    if (!LoSteamServer.GetSteamID().IsValid())
-    {
-        LbSuccess = false;
-        PrintW("Steam authentication failed - invalid SteamID");
-    }
-    if (Online::GetSubsystem(GetWorld())->GetSubsystemName() != "STEAM") {
-        LbSuccess = false;
-        PrintW("Steam authentication failed - OnlineSubsystem is not STEAM");
-    }
-
-    if (LbSuccess && LoSteamServer.BLoggedOn())
-    {
-        Print("Steam authentication complete - ready to create session: ", SessionName);
-
-        // Get the Steam Online Subsystem
-        IOnlineSubsystem* OnlineSubsystem = IOnlineSubsystem::Get(STEAM_SUBSYSTEM);
-
-        GET(LoOnlineSubsystem, IOnlineSubsystem::Get(STEAM_SUBSYSTEM));
-        GET(LoSteamSubsystem, static_cast<FOnlineSubsystemSteam*>(LoOnlineSubsystemPtr));
-
-        bool bSuccess = LoSteamSubsystem.InitSteamworksServer();
-        if (bSuccess)
-        {
-            UE_LOG(LogTemp, Log, TEXT("Steam server API initialized successfully."));
-            Print("Waiting for Steam Game Server authentication callback...");
-            //LoSteamServer.LogOnAnonymous();
-            InitTracker(MoTrackSubsystemReady);
-            GET(MoTrackSubsystemReady);
-            MoTrackSubsystemReady.Slingshot(AROSS::GetWorldPtr(), "ASessionManager::CreateSession");
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Failed to initialize Steam server API."));
-            LbSuccess = false;
-        }
-    }
-    else if(LoSteamServer.BLoggedOn())
-    {
-        PrintW("Steam authentication failed - cannot create session: ", SessionName);
-        LbSuccess = false;
-    }
-
-    if (!LbSuccess)
-    {
-        Print("Steam authentication NOT yet successful");
-        Print("Slingshot >> ASessionManager::OnSteamAuthenticationComplete");
-        Print("Map Name: ", AROSS::GetWorldDrf().GetMapName());
-        InitTracker(MoTrackSubsystemReady);
-        GET(MoTrackSubsystemReady);
-        MoTrackSubsystemReady.Slingshot(AROSS::GetWorldPtr(), "OnSteamAuthenticationComplete");
-        return;
-    }
+    ATracker::DelayAction(GetWorld(), this, "RegisterServer", LnDelaySecs);
 }
 
 void ASessionManager::CreateSession()
@@ -428,58 +235,6 @@ void ASessionManager::CreateSession()
 void ASessionManager::ServerCreateSession()
 {
     PrintStart();
-    if (SeState != EState::RegisterServer) {
-        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::RegisterServer);
-        return;
-    }
-    if (GetWorld()->GetNetMode() != ENetMode::NM_DedicatedServer) {
-        PrintW("Not a dedicated server - skipping server registration");
-        return;
-    }
-    ensure(SsSessionName == SessionName);
-
-    auto LbReady = true;
-    if (!GetWorld())
-    {
-        LbReady = false;
-        Print("GetWorld() is NULL");
-        
-    }
-    else if (!AROSS::InitializeReady(GetWorld()))
-    {
-        LbReady = false;
-        PrintW("AROSS not ready");
-    }
-    if (!SteamGameServer()->BLoggedOn())
-    {
-        LbReady = false;
-        Print("Steam Not ready yet, looping back for Session: ", SessionName);
-        SteamGameServer()->LogOnAnonymous();
-    }
-
-    if (LbReady)
-    {
-        SetupRoss();
-        RossPtr = AROSS::GetRossPtr();
-    }
-    else {
-        Print("Slingshot");
-        GET(MoTrackSubsystemReady);
-        MoTrackSubsystemReady.Slingshot(GetWorld(), "CreateSession");
-        return;
-    }
-
-    RossPtr = AROSS::GetRossPtr();
-
-    GET(Ross);
-    ensure(SsSessionName == SessionName);
-    // auto LoResultPtr = Ross.GetSessions().ExeServerCreateSession(
-    //    FOnCreateSessionCompleteDelegate(),
-    //    SoSettings);
-
-
-    SteamGameServer()->SetAdvertiseServerActive(true);
-    bSteamAuthenticated = true;
 }
 
 void ASessionManager::P2PCreateSession()
@@ -548,9 +303,7 @@ void ASessionManager::ServerStartSession()
     }
     ensure(SsSessionName == SessionName);
 
-    if (GetWorld()
-        && AROSS::InitializeReady(GetWorld())
-        && SteamGameServer()->BLoggedOn())
+    if (GetWorld() && AROSS::InitializeReady(GetWorld()))
     {
         SetupRoss();
     }
@@ -602,7 +355,7 @@ void ASessionManager::P2PStartSession()
 void ASessionManager::OnStartSessionComplete(FName InSessionName, bool bWasSuccessful)
 {
     PrintStart();
-    Super::OnStartSessionComplete(InSessionName, bWasSuccessful);
+    AGameSession::OnStartSessionComplete(InSessionName, bWasSuccessful);
     ensure(SessionName == InSessionName);
     if (bWasSuccessful) {
         Print("Session ", InSessionName, " started successfully.");
@@ -704,16 +457,16 @@ void ASessionManager::OnAutoLoginComplete(int32 LocalUserNum, bool bWasSuccessfu
     }
 }
 
-void ASessionManager::OnAutoLoginComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& Error)
-{
-    PrintStart();
-    if (bWasSuccessful) {
-        Print("AutoLogin successful for LocalUserNum: ", LocalUserNum);
-    }
-    else {
-        PrintW("AutoLogin failed for LocalUserNum: ", LocalUserNum, ", Error: ", Error);
-    }
-}
+//void ASessionManager::OnAutoLoginComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& Error)
+//{
+//    PrintStart();
+//    if (bWasSuccessful) {
+//        Print("AutoLogin successful for LocalUserNum: ", LocalUserNum);
+//    }
+//    else {
+//        PrintW("AutoLogin failed for LocalUserNum: ", LocalUserNum, ", Error: ", Error);
+//    }
+//}
 
 void ASessionManager::RegisterPlayer(APlayerController* NewPlayerPtr, const FUniqueNetIdRepl& UniqueId, bool bWasFromInvite)
 {
@@ -843,21 +596,6 @@ void ASessionManager::Restart()
     throw BBB("Not Programed Yet");
 }
 
-int32 ASessionManager::GetSteamAppID() const
-{
-    PrintStart();
-    int32 LnSteamAppID = -1;
-
-    if (!GConfig->GetInt(
-        TEXT("OnlineSubsystemSteam"),
-        TEXT("SteamAppId"),
-        LnSteamAppID,
-        GEngineIni))
-    ensure(LnSteamAppID != -1);
-    Print("Registering Steam App ID: ", LnSteamAppID);
-    return LnSteamAppID;
-}
-
 void ASessionManager::RegisterServerFailed()
 {
     PrintStart();
@@ -936,87 +674,7 @@ int32 ASessionManager::GetNumSpectators() const
     return Count;
 }
 
-void ASessionManager::OnSteamServersConnected(SteamServersConnected_t* pCallback)
-{
-    PrintStart();
-    static bool bLoggedOnce = false;
-    if (!bLoggedOnce)
-    {
-        bLoggedOnce = true;
-        ensure(SsSessionName == SessionName);
-        Print("Steam Game Server: Connected to Steam!");
-        Print("SteamID: ", FString::Printf(TEXT("%llu"), SteamGameServer()->GetSteamID().ConvertToUint64()));
-    }
-}
-
-void ASessionManager::OnSteamServerConnectFailure(SteamServerConnectFailure_t* pCallback)
-{
-    PrintStart();
-    ensure(SsSessionName == SessionName);
-    PrintE("Steam Game Server: Connection failed!");
-    PrintE("Result: ", (int32)pCallback->m_eResult);
-    PrintE("Still retrying: ", pCallback->m_bStillRetrying);
-    
-    // Optionally retry
-    if (!pCallback->m_bStillRetrying)
-        RegisterServerFailed();
-}
-
-void ASessionManager::OnSteamServersDisconnected(SteamServersDisconnected_t* pCallback)
-{
-    PrintW("Steam Game Server: Disconnected from Steam!");
-    PrintW("Result: ", (int32)pCallback->m_eResult);
-    bSteamAuthenticated = false;
-}
-
-void ASessionManager::OnGSPolicyResponse(GSPolicyResponse_t* pCallback)
-{
-    PrintStart();
-    static bool bHandledOnce = false;
-    if (bHandledOnce) return;
-    bHandledOnce = true;
-
-    ensure(SessionName != FName("None") && SsSessionName != FName("SessionName"));
-    Print("Steam Game Server: GSPolicyResponse received");
-    Print("Secure: ", pCallback->m_bSecure);
-    
-    if (SteamGameServer() && SteamGameServer()->BLoggedOn())
-    {
-        Print("Steam Game Server: Authentication complete!");
-        Print("Steam Server ID: ", FString::Printf(TEXT("%llu"), SteamGameServer()->GetSteamID().ConvertToUint64()));
-        Print("Steam App    ID: ", SteamGameServerUtils()->GetAppID())
-        
-        // Notify that Steam is ready for session creation
-        OnSteamAuthenticationComplete();
-    }
-    else
-    {
-        PrintW("GSPolicyResponse received but BLoggedOn() still false");
-    }
-}
-
-void ASessionManager::OnLobbyCreated(LobbyCreated_t* pCallback)
-{
-    PrintStart();
-    if (pCallback->m_eResult == k_EResultOK)
-    {
-        Print("Lobby created successfully. Lobby ID: ", pCallback->m_ulSteamIDLobby);
-        CSteamID lobbyId = pCallback->m_ulSteamIDLobby;
-        // Set lobby data
-        SteamMatchmaking()->SetLobbyData(lobbyId, "SessionName", TCHAR_TO_UTF8(*SessionName.ToString()));
-        SteamMatchmaking()->SetLobbyData(lobbyId, "MaxPlayers",  TCHAR_TO_UTF8(*FString::FromInt(MaxPlayers)));
-        // Add more data as needed from SoSettings
-        SeState = EState::CreateSession;
-        // Proceed to start session or notify
-    }
-    else
-    {
-        PrintW("Failed to create lobby. Result: ", (int32)pCallback->m_eResult);
-    }
-}
-
 // Static member definitions
-bool ASessionManager::bSteamAuthenticated = false;
 FName ASessionManager::SsSessionName = "Unset";
 FRossSessionSettings ASessionManager::SoSettings;
 TSet<FUniqueNetIdRepl> ASessionManager::SvSessionPlayers;

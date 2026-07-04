@@ -1,6 +1,5 @@
 #include "ROSS/OSS/RpSessions.h"
 #include "OnlineSubsystemUtils.h"
-#include "OnlineAuthHandlerSteam.h"
 #include "Templates/SharedPointer.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerState.h"
@@ -208,7 +207,7 @@ URpSessions::ExeServerCreateSession(FOnStartSessionCompleteDelegate&& FoDelegate
     auto Identity = OSS.GetIdentityInterface();
     if (!Identity.IsValid())
     {
-        LoResultPtr->OnResult(false, TEXT("Steam subsystem not available or user not logged in."), LsSessionName, false);
+        LoResultPtr->OnResult(false, TEXT("Subsystem not available or user not logged in."), LsSessionName, false);
         return LoResultPtr;
     }
 

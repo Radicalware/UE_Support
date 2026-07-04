@@ -2,11 +2,8 @@
 
 
 #include "ROSS/OSS/RpAuth.h"
-#include "OnlineSubsystemUtils.h"
-#include "OnlineAuthHandlerSteam.h"
-
 #include "ROSS/ROSS.h"
-
+#include "OnlineSubsystemUtils.h"
 
 URpAuth::URpAuth()
 {
@@ -72,20 +69,20 @@ bool URpAuth::BxCanLinkCrossPlatformAccount() const
     return Value == TEXT("true");
 }
 
-void URpAuth::CheckDedicatedServer(UWorld* FoWorldPtr)
+void URpAuth::ChecThrowkDedicatedServer(UWorld* FoWorldPtr)
 {
     Print("EOS Logging In")
     Print("Authentication Subsystem: ", Online::GetSubsystem(FoWorldPtr)->GetSubsystemName());
 
     auto LoWorld = (FoWorldPtr) ? FoWorldPtr : GetWorld();
-    if (not FoWorldPtr->IsNetMode(NM_DedicatedServer))
+    if (not LoWorld->IsNetMode(NM_DedicatedServer))
     {
-        PrintW("Not a Dedicated Server");
+        PrintE("Not a Dedicated Server");
         return;
     }
+#ifdef BxSteam
     IOnlineSubsystem* OSS = IOnlineSubsystem::Get(STEAM_SUBSYSTEM);
     UE_LOG(LogTemp, Log, TEXT("OSS: %s"), OSS ? TEXT("STEAM") : TEXT("NULL"));
-
     const bool bGSInit   = (SteamGameServerUtils() != nullptr);
     const bool bLoggedOn = (SteamGameServer() && SteamGameServer()->BLoggedOn());
     const uint32 AppId   = SteamGameServerUtils() ? SteamGameServerUtils()->GetAppID() : 0;
@@ -96,6 +93,7 @@ void URpAuth::CheckDedicatedServer(UWorld* FoWorldPtr)
     if (not bGSInit or not bLoggedOn) {
         PrintE("This Will Fail");
     }
+#endif
 }
 
 

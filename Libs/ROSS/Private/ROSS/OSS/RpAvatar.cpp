@@ -33,8 +33,6 @@ TSharedPtr<TNetResult<UTexture>> URpAvatar::GetAvatar(
         return ResultPtr;
     }
 
-    PrintW("Steam does not by default have this GetAvatar function, it must be created");
-
     // Direct lambda capture (intentional per user request). Assumes this component lives until callback.
     // Use Weak Pointer for Auto safety: It stores a weak reference to the UObject you pass. 
     // If that UObject (e.g. this component/actor) is destroyed or GC�d before the delegate fires, 

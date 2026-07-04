@@ -21,7 +21,7 @@ public:
     bool BxAuthReady() const;
     bool BxLoggedIn() const;
     bool BxCanLinkCrossPlatformAccount() const;
-    void CheckDedicatedServer(UWorld* FoWorldPtr = nullptr);
+    void ChecThrowkDedicatedServer(UWorld* FoWorldPtr = nullptr);
 
     sp<TNetResult<void, FOnLoginCompleteDelegate>> ExAutoLogin(UWorld* FoWorldPtr, FOnLoginCompleteDelegate& FoDelegate);
     sp<TNetResult<>> ExLogout();

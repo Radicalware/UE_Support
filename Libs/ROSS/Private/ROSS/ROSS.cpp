@@ -1,7 +1,7 @@
 #include "ROSS/ROSS.h"
 #include "ROSS/RpConfig.h"
 #include "Access/General.h"
-#include "ROSS/SessionManager.h"
+#include "ROSS/Manager/SessionManager.h"
 #include <Kismet/GameplayStatics.h>
 
 #include "GameFramework/PlayerState.h"
@@ -26,12 +26,13 @@
 #include "ROSS/OSS/RpVoiceChat.h"
 
 
-
-#if USING_STEAM
-#include "steam/steam_api.h"
-FName AROSS::SsSybsystem = STEAM_SUBSYSTEM;
-#else
-FName AROSS::SsSybsystem = EOS_SUBSYSTEM;
+#if BxROSS
+	FName AROSS::SsSybsystem = "RossSubsystem";
+#elif defined(BxSteam)
+	#include "steam/steam_api.h"
+	FName AROSS::SsSybsystem = STEAM_SUBSYSTEM;
+#elif defined(BxEpic)
+	FName AROSS::SsSybsystem = EOS_SUBSYSTEM;
 #endif
 
 AROSS::AROSS()
@@ -158,31 +159,6 @@ void AROSS::Setup()
 {
 	PrintStart();
 	GET(SoWorld);
-#if USING_STEAM
-
-	if (SoWorld.GetNetMode() == ENetMode::NM_DedicatedServer)
-	{
-		if (!SteamGameServerUtils()) {
-			PrintW("SteamGameServerUtils interface is not available.");
-		}
-		else {
-			Print("Steam is running. AppID: ", SteamGameServerUtils()->GetAppID());
-		}
-	}
-	else if (SoWorld.GetNetMode() == ENetMode::NM_Client || SoWorld.GetNetMode() == ENetMode::NM_Standalone)
-	{
-		if (!SteamUtils()) {
-			PrintW("SteamUtils interface is not available.");
-		}
-		else {
-			Print("Steam is running. AppID: ", SteamUtils()->GetAppID());
-		}
-	}
-	else {
-        Print("Running P2P, No Dedicated Server or Client mode detected.");
-	}
-
-#endif
 	if (!SoROSSPtr) {
 		auto* SpawnedActor = SoWorld.SpawnActor<AROSS>(AROSS::StaticClass());
 		SoROSSPtr = SpawnedActor; // Safe assignment
