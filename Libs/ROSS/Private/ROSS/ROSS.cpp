@@ -25,170 +25,87 @@
 #include "ROSS/OSS/RpUsers.h"
 #include "ROSS/OSS/RpVoiceChat.h"
 
+#include "OnlineSubsystem.h"
+#include "OnlineSubsystemModule.h"
+#include "OnlineSubsystemNames.h"
+#include "Interfaces/OnlineIdentityInterface.h"
+#include "Interfaces/OnlineSessionInterface.h"
 
-#if BxROSS
-	FName AROSS::SsSybsystem = "RossSubsystem";
-#elif defined(BxSteam)
+
+
+#if defined(BxROSS)
+	FName UROSS::SsSybsystem = NULL_SUBSYSTEM; // As of right now ROSS is a UE Subsystem, not a full Online Subsystem
+#elif (BxSteam)
 	#include "steam/steam_api.h"
-	FName AROSS::SsSybsystem = STEAM_SUBSYSTEM;
+	FName UROSS::SsSybsystem = STEAM_SUBSYSTEM;
 #elif defined(BxEpic)
-	FName AROSS::SsSybsystem = EOS_SUBSYSTEM;
+	FName UROSS::SsSybsystem = EOS_SUBSYSTEM;
 #endif
 
-AROSS::AROSS()
+UROSS::UROSS()
 {
-	PrimaryActorTick.bCanEverTick = false;
-
-	// Always create a root scene component
-	RootSceneComponentPtr = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
-	RootComponent = RootSceneComponentPtr;
-
-	// Create all OSS wrapper components as default subobjects and attach to root
+    PrintStart();
 	MoAchievementsPtr = CreateDefaultSubobject<URpAchievements>(TEXT("Achievements"));
-	MoAchievementsPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoAuthPtr = CreateDefaultSubobject<URpAuth>(TEXT("Auth"));
-	MoAuthPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoAvatarPtr = CreateDefaultSubobject<URpAvatar>(TEXT("Avatar"));
-	MoAvatarPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoCurrentUser = CreateDefaultSubobject<URpCurrentUser>(TEXT("CurrentUser"));
-	MoCurrentUser->SetupAttachment(RootSceneComponentPtr);
-
 	MoEcommercePtr = CreateDefaultSubobject<URpEcommerce>(TEXT("Ecommerce"));
-	MoEcommercePtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoEventsPtr = CreateDefaultSubobject<URpEvents>(TEXT("Events"));
-	MoEventsPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoFriendsPtr = CreateDefaultSubobject<URpFriends>(TEXT("Friends"));
-	MoFriendsPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoIdentityPtr = CreateDefaultSubobject<URpIdentity>(TEXT("Identity"));
-	MoIdentityPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoLeaderboardsPtr = CreateDefaultSubobject<URpLeaderboards>(TEXT("Leaderboards"));
-	MoLeaderboardsPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoPartiesPtr = CreateDefaultSubobject<URpParties>(TEXT("Parties"));
-	MoPartiesPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoPresencePtr = CreateDefaultSubobject<URpPresence>(TEXT("Presence"));
-	MoPresencePtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoSessionsPtr = CreateDefaultSubobject<URpSessions>(TEXT("Sessions"));
-	MoSessionsPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoStatsPtr = CreateDefaultSubobject<URpStats>(TEXT("Stats"));
-	MoStatsPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoTitleFilePtr = CreateDefaultSubobject<URpTitleFile>(TEXT("TitleFile"));
-	MoTitleFilePtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoUserCloudPtr = CreateDefaultSubobject<URpUserCloud>(TEXT("UserCloud"));
-	MoUserCloudPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoUsersPtr = CreateDefaultSubobject<URpUsers>(TEXT("Users"));
-	MoUsersPtr->SetupAttachment(RootSceneComponentPtr);
-
 	MoVoiceChatPtr = CreateDefaultSubobject<URpVoiceChat>(TEXT("VoiceChat"));
-	MoVoiceChatPtr->SetupAttachment(RootSceneComponentPtr);
 }
 
-AROSS::~AROSS()
+
+void UROSS::Initialize(FSubsystemCollectionBase& Collection)
 {
-	Print("Destroying AROSS");
+    PrintStart();
+    Print("ROSS Initializing");
+
+    Super::Initialize(Collection);
+	
+    Print("ROSS Subsystem Initialized");
+
+	if (GetWorld()) {
+		SoWorldPtr = GetWorld();
+	}
+}
+
+void UROSS::Deinitialize()
+{
 	SoWorldPtr = nullptr;
-	SoROSSPtr  = nullptr;
 }
 
-
-AROSS& AROSS::GetRoss()
+UROSS::~UROSS()
 {
-	return *AROSS::GetRossPtr();
+	Print("Destroying UROSS");
+	SoWorldPtr = nullptr;
 }
 
-TWeakObjectPtr<AROSS> AROSS::GetRossWPtr()
-{
-	if (!SoROSSPtr)
-	{
-		if (SoWorldPtr)
-			AROSS::Setup();
-		else
-			BBB("No World Ptr");
-	}
-	return SoROSSPtr.Get();
-}
-
-TObjectPtr<AROSS> AROSS::GetRossPtr()
-{
-	if (!SoROSSPtr)
-	{
-		if (SoWorldPtr)
-			AROSS::Setup();
-		else
-			BBB("No World Ptr");
-	}
-	return SoROSSPtr;
-}
-
-void AROSS::SetWorld(UWorld* FoWorldPtr)
+void UROSS::SetWorld(UWorld* FoWorldPtr)
 {
 	SoWorldPtr = FoWorldPtr;
 	if(not SoWorldPtr)
-        BBB("No World Ptr Set in AROSS::SetWorld");
+        BBB("No World Ptr Set in UROSS::SetWorld");
 }
 
-UWorld& AROSS::GetWorldDrf()
-{
-	return *AROSS::GetWorldPtr();
-}
-
-UWorld* AROSS::GetWorldPtr()
-{
-	if (SoWorldPtr)
-		return SoWorldPtr;
-	SoWorldPtr = GetRoss().GetWorld();
-	if(!SoWorldPtr)
-        BBB("No World Ptr");
-	return SoWorldPtr;
-}
-
-void AROSS::Setup()
+void UROSS::SetupPostLogin(UWorld* LoadedWorldPtr)
 {
 	PrintStart();
-	GET(SoWorld);
-	if (!SoROSSPtr) {
-		auto* SpawnedActor = SoWorld.SpawnActor<AROSS>(AROSS::StaticClass());
-		SoROSSPtr = SpawnedActor; // Safe assignment
-	}
-	GET(SoROSS);
-
-	auto& LoTrackAuth = SoROSS.GetAuthTracker();
-	if (!SoROSS.GetAuth().BxAuthReady())
-	{
-		LoTrackAuth.Slingshot(SoWorldPtr, "AROSS::Setup");
-		return;
-	}
-
-	SoROSSPtr->SetupPostLogin();
-}
-
-void AROSS::Shutdown()
-{
-    SoROSSPtr = nullptr;
-	SoWorldPtr = nullptr;
-}
-
-void AROSS::SetupPostLogin()
-{
-	PrintStart();
-	GET(SoROSS);
+    if (LoadedWorldPtr != nullptr)
+        SoWorldPtr = LoadedWorldPtr;
 	if (!InitializeReady(SoWorldPtr))
 	{
-        auto& LoTrackAuth = SoROSS.GetAuthTracker();
-		LoTrackAuth.Slingshot(SoWorldPtr, "AROSS::SetupPostLogin");
+        auto& LoTrackAuth = GetAuthTracker();
+		LoTrackAuth.Slingshot(SoWorldPtr, "UROSS::SetupPostLogin");
 		return;
 	}
 	auto Init = [](URpConfig* Comp)
@@ -197,27 +114,28 @@ void AROSS::SetupPostLogin()
 			Comp->Setup();
 	};
 
-	Init(SoROSS.MoAuthPtr);
-	Init(SoROSS.MoAchievementsPtr);
-	Init(SoROSS.MoAvatarPtr);
-	Init(SoROSS.MoCurrentUser);
-	Init(SoROSS.MoEcommercePtr);
-	Init(SoROSS.MoEventsPtr);
-	Init(SoROSS.MoFriendsPtr);
-	Init(SoROSS.MoIdentityPtr);
-	Init(SoROSS.MoLeaderboardsPtr);
-	Init(SoROSS.MoPartiesPtr);
-	Init(SoROSS.MoPresencePtr);
-	Init(SoROSS.MoSessionsPtr);
-	Init(SoROSS.MoStatsPtr);
-	Init(SoROSS.MoTitleFilePtr);
-	Init(SoROSS.MoUserCloudPtr);
-	Init(SoROSS.MoUsersPtr);
-	Init(SoROSS.MoVoiceChatPtr);
+	Init(The.MoAuthPtr);
+	Init(The.MoAchievementsPtr);
+	Init(The.MoAvatarPtr);
+	Init(The.MoCurrentUser);
+	Init(The.MoEcommercePtr);
+	Init(The.MoEventsPtr);
+	Init(The.MoFriendsPtr);
+	Init(The.MoIdentityPtr);
+	Init(The.MoLeaderboardsPtr);
+	Init(The.MoPartiesPtr);
+	Init(The.MoPresencePtr);
+	Init(The.MoSessionsPtr);
+	Init(The.MoStatsPtr);
+	Init(The.MoTitleFilePtr);
+	Init(The.MoUserCloudPtr);
+	Init(The.MoUsersPtr);
+	Init(The.MoVoiceChatPtr);
+
 	bReady = true;
 }
 
-bool AROSS::InitializeReady(UWorld* FoWorldPtr)
+bool UROSS::InitializeReady(UWorld* FoWorldPtr)
 {
 	PrintStart();
 	GET(FoWorld);
@@ -247,7 +165,7 @@ bool AROSS::InitializeReady(UWorld* FoWorldPtr)
 		return false;
 	}
 	if (FoWorld.GetNetMode() == NM_DedicatedServer) {
-		Print("Success Server: AROSS::InitializeReady");
+		Print("Success Server: UROSS::InitializeReady");
 		return true;
 	}
 
@@ -259,25 +177,20 @@ bool AROSS::InitializeReady(UWorld* FoWorldPtr)
 		Print("No User ID Ptr");
 		return false;
 	}
-	Print("Success Client: AROSS::InitializeReady");
+	Print("Success Client: UROSS::InitializeReady");
     return true;
 }
 
-bool AROSS::BxReady()
+bool UROSS::BxReady()
 {
-	if (!SoWorldPtr || !SoROSSPtr)
+	if (!SoWorldPtr)
 		return false;
     if (!bReady)
         return false;
 	return true;
 }
 
-void AROSS::BeginPlay()
-{
-	AActor::BeginPlay();
-}
-
-ATracker& AROSS::GetAuthTracker()
+ATracker& UROSS::GetAuthTracker()
 {
 	GetTracker(MoTrackAuth);
 	return MoTrackAuth;

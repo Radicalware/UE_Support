@@ -30,7 +30,7 @@ void URpEvents::RaisePartiesOnPartiesStateChanged()
 void URpEvents::RegisterEvents()
 {
     // Get the online subsystem.
-    auto OSS = Online::GetSubsystem(this->GetWorld());
+    auto OSS = Online::GetSubsystem(this->GetOuterWorld());
     if (OSS == nullptr)
     {
         return;
@@ -56,7 +56,7 @@ void URpEvents::RegisterEvents()
             [this]
             (const FUniqueNetId& LocalUserId)
             {
-                auto DelegateOSS = Online::GetSubsystem(this->GetWorld());
+                auto DelegateOSS = Online::GetSubsystem(this->GetOuterWorld());
                 if (DelegateOSS != nullptr)
                 {
                     auto Identity = DelegateOSS->GetIdentityInterface();
@@ -149,7 +149,7 @@ void URpEvents::RegisterEvents()
                 MsJoinSessionIdFromParty = JoinSessionIdFromParty;
 
                 // Find the session, join it, and then join the game server.
-                auto CallbackOSS = Online::GetSubsystem(this->GetWorld());
+                auto CallbackOSS = Online::GetSubsystem(this->GetOuterWorld());
                 if (CallbackOSS == nullptr)
                 {
                     return;
@@ -197,7 +197,7 @@ void URpEvents::RegisterEvents()
                                         FString ConnectInfo;
                                         Session->GetResolvedConnectString(NAME_GameSession, ConnectInfo);
                                         GEngine->SetClientTravel(
-                                            this->GetWorld(),
+                                            this->GetOuterWorld(),
                                             *ConnectInfo,
                                             TRAVEL_Absolute);
                                         Session->ClearOnJoinSessionCompleteDelegate_Handle(*CallbackHandle);

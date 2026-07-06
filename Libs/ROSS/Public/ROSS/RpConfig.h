@@ -43,6 +43,8 @@ public:
     INL const auto GetLocalUserNum() const { return LocalUserNum; }
 
 protected:
+    UWorld* GetOuterWorld();
+
     UPROPERTY(
         BlueprintReadOnly,
         VisibleAnywhere,

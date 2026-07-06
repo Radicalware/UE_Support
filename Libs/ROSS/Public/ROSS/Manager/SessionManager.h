@@ -32,11 +32,9 @@ protected:
         StartSession,
         ServerTravelListen,
     };
-    INL static EState SeState = EState::None;
+    EState MeState = EState::None;
 
     UPROPERTY() ATracker* MoTrackSubsystemReadyPtr = nullptr;
-    UPROPERTY() TWeakObjectPtr<AROSS> RossPtr = nullptr;
-
 public:
     ASessionManager();
     virtual ~ASessionManager() override;
@@ -93,6 +91,8 @@ public:
 
     UFUNCTION() virtual void SearchSessions();
     static FRossSessionSettings SoSettings;
+    const UROSS& GetROSS() const;
+    UROSS& GetROSS();
 protected:
     int32 GetNumPlayers() const;
     int32 GetNumSpectators() const;
@@ -103,4 +103,5 @@ protected:
     static TMap<FUniqueNetIdRepl, APlayerController*> SmAdmins;
     static FString SsTravel;
     inline static bool bUsingDedicatedServer = false;
+
 };

@@ -39,7 +39,6 @@ ARossManager::~ARossManager()
 {
     PrintStart();
     Print("Server shutting down not included (commented out)");
-    RossPtr = nullptr;
 }
 
 void ARossManager::Tick(float DeltaSeconds)
@@ -55,8 +54,8 @@ void ARossManager::RegisterServer()
         PrintW("Not a dedicated server - skipping server registration");
         return;
     }
-    if (SeState != EState::None) {
-        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::None);
+    if (MeState != EState::None) {
+        PrintW("Incorrect State: ", (int)MeState, " != ", (int)EState::None);
         return;
     }
     Print("Registering Server...");
@@ -257,7 +256,6 @@ void ARossManager::DumpSessionState()
 {
     PrintStart();
     PrintE("You must create an object to store session stats, then add a stdout and write it to a file or DB");
-    // #include "OnlineEngineInterfaceRedpointEOS.h"
     //if (UOnlineEngineInterfaceRedpointEOS* OnlineEngineInterface = UOnlineEngineInterfaceRedpointEOS::Get())
     //{
     //    OnlineEngineInterface->DumpSessionState(GetWorld());
@@ -278,8 +276,7 @@ void ARossManager::OnEndSessionComplete(FName FsSessionName, bool bWasSuccessful
 void ARossManager::SearchSessions()
 {
     PrintStart();
-    GET(Ross);
-    Ross.GetSessions().SearchSessions();
+    GetROSS().GetSessions().SearchSessions();
 }
 
 //void ARossManager::OnRossServersConnected(RossServersConnected_t* pCallback)

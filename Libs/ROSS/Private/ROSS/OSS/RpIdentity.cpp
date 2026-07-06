@@ -17,7 +17,7 @@ void URpIdentity::BeginPlay()
 FUniqueNetIdRepl URpIdentity::GetIdentityUniqueNetId(const FString& UniqueNetId)
 {
     // Get the online subsystem.
-    auto OSS = Online::GetSubsystem(this->GetWorld());
+    auto OSS = Online::GetSubsystem(this->GetOuterWorld());
     if (OSS == nullptr)
     {
         return FUniqueNetIdRepl();

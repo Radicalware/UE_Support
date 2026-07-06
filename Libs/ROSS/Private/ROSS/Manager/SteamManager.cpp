@@ -205,7 +205,7 @@ void ASteamManager::OnSteamAuthenticationComplete()
     ensure(SsSessionName == SessionName);
 
     bool LbSuccess = true;
-    RossPtr = AROSS::GetRossPtr();
+    RossPtr = UROSS::GetRossPtr();
 
     GET(Ross);
     Ross.SetupPostLogin(); // 2nd time just in case
@@ -254,7 +254,7 @@ void ASteamManager::OnSteamAuthenticationComplete()
             //LoSteamServer.LogOnAnonymous();
             InitTracker(MoTrackSubsystemReady);
             GET(MoTrackSubsystemReady);
-            MoTrackSubsystemReady.Slingshot(AROSS::GetWorldPtr(), "ASteamManager::CreateSession");
+            MoTrackSubsystemReady.Slingshot(UROSS::GetWorldPtr(), "ASteamManager::CreateSession");
         }
         else
         {
@@ -272,10 +272,10 @@ void ASteamManager::OnSteamAuthenticationComplete()
     {
         Print("Steam authentication NOT yet successful");
         Print("Slingshot >> ASteamManager::OnSteamAuthenticationComplete");
-        Print("Map Name: ", AROSS::GetWorldDrf().GetMapName());
+        Print("Map Name: ", UROSS::GetWorldDrf().GetMapName());
         InitTracker(MoTrackSubsystemReady);
         GET(MoTrackSubsystemReady);
-        MoTrackSubsystemReady.Slingshot(AROSS::GetWorldPtr(), "OnSteamAuthenticationComplete");
+        MoTrackSubsystemReady.Slingshot(UROSS::GetWorldPtr(), "OnSteamAuthenticationComplete");
         return;
     }
 #endif
@@ -314,10 +314,10 @@ void ASteamManager::ServerCreateSession()
         Print("GetWorld() is NULL");
         
     }
-    else if (!AROSS::InitializeReady(GetWorld()))
+    else if (!UROSS::InitializeReady(GetWorld()))
     {
         LbReady = false;
-        PrintW("AROSS not ready");
+        PrintW("UROSS not ready");
     }
     if (!SteamGameServer()->BLoggedOn())
     {
@@ -329,7 +329,7 @@ void ASteamManager::ServerCreateSession()
     if (LbReady)
     {
         SetupRoss();
-        RossPtr = AROSS::GetRossPtr();
+        RossPtr = UROSS::GetRossPtr();
     }
     else {
         Print("Slingshot");
@@ -338,7 +338,7 @@ void ASteamManager::ServerCreateSession()
         return;
     }
 
-    RossPtr = AROSS::GetRossPtr();
+    RossPtr = UROSS::GetRossPtr();
 
     GET(Ross);
     ensure(SsSessionName == SessionName);

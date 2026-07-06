@@ -5,6 +5,8 @@
 #include "Access/General.h"
 #include "OnlineSubsystem.h"
 #include "Interfaces/OnlineSessionDelegates.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "Access/General.h"
 #include "ROSS.generated.h"
 
 // Forward declarations for OSS wrappers
@@ -27,32 +29,23 @@ class URpUsers;
 class URpVoiceChat;
 
 UCLASS()
-class THEGAME_API AROSS : public AActor
+class THEGAME_API UROSS : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
-
-    bool bReady = false;
-	static FName SsSybsystem;
 public:
+	UROSS();
+    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+    virtual void Deinitialize() override;
+	virtual ~UROSS();
+	
 	static auto& GetSubsystemName() { return SsSybsystem; }
 	static auto& GetSubsystem()     { return *IOnlineSubsystem::Get(SsSybsystem); }
-	AROSS();
-	virtual ~AROSS();
-	static void Setup();
-	static void Shutdown();
-	UFUNCTION() void SetupPostLogin();
+
+	UFUNCTION() void SetupPostLogin(UWorld* LoadedWorldPtr = nullptr);
 	static bool InitializeReady(UWorld* FoWorldPtr);
 	       bool BxReady();
-	static AROSS& GetRoss();
-	static TWeakObjectPtr<AROSS> GetRossWPtr();
-	static TObjectPtr<AROSS> GetRossPtr();
 	static void SetWorld(UWorld* FoWorldPtr);
-	static UWorld& GetWorldDrf();
-	static UWorld* GetWorldPtr();
-protected:
-	virtual void BeginPlay() override;
-	
-	INL static TObjectPtr<AROSS> SoROSSPtr = nullptr;
+protected:	
 	INL static UWorld* SoWorldPtr = nullptr;
 
 	UPROPERTY() class URpAchievements* MoAchievementsPtr = nullptr;
@@ -125,8 +118,9 @@ public:
 	inline auto& GetVoiceChat() const { return *MoVoiceChatPtr; }
 	inline auto& GetVoiceChat() { return *MoVoiceChatPtr; }
 
-private:
-	UPROPERTY() USceneComponent* RootSceneComponentPtr = nullptr;
+private:	
+    bool bReady = false;
+	static FName SsSybsystem;
 
 	ATracker* MoTrackAuthPtr = nullptr;
 	ATracker& GetAuthTracker();

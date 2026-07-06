@@ -40,7 +40,6 @@ ASessionManager::~ASessionManager()
     PrintStart();
 
     Print("Server shutting down not included (commented out)");
-    RossPtr = nullptr;
 }
 
 void ASessionManager::Tick(float DeltaSeconds)
@@ -72,9 +71,7 @@ void ASessionManager::SetServerArguments()
 void ASessionManager::SetupRoss()
 {
     PrintStart();
-    AROSS::SetWorld(GetWorld());
-    AROSS::Setup();
-    RossPtr = AROSS::GetRossPtr();
+    UROSS::SetWorld(GetWorld());
 }
 
 void ASessionManager::InitOptions(const FString& Options)
@@ -100,8 +97,6 @@ void ASessionManager::InitOptions(const FString& Options)
         Print("InitOptions: Now  SessionName: ", SsSessionName);
     }else
         SessionName = SsSessionName;
-    RossPtr = AROSS::GetRossPtr();
-    ensure(RossPtr != nullptr);
 }
 
 void ASessionManager::SetSessionSettings(UWorld* FoWorldPtr, const FGameConfig& FoGameConfig)
@@ -203,8 +198,8 @@ void ASessionManager::RegisterServer()
         PrintW("Not a dedicated server - skipping server registration");
         return;
     }
-    if (SeState != EState::None) {
-        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::None);
+    if (MeState != EState::None) {
+        PrintW("Incorrect State: ", (int)MeState, " != ", (int)EState::None);
         return;
     }
     Print("Registering Server...");
@@ -244,14 +239,14 @@ void ASessionManager::P2PCreateSession()
         PrintW("Should be a Client NOT a dedicated server in P2P Sessions");
         return;
     }
-    if (SeState != EState::None) {
-        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::None);
+    if (MeState != EState::None) {
+        PrintW("Incorrect State: ", (int)MeState, " != ", (int)EState::None);
         return;
     }
     ensure(SsSessionName == SessionName);
 
-    RossPtr = AROSS::GetRossPtr();
-    GET(Ross);
+    GET(GI, GetGameInstance());
+    GET(Ross, GI.GetSubsystem<UROSS>());
     auto LoResultsPtr = Ross.GetSessions().ExeServerCreateSession(
         FOnCreateSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnCreateSessionComplete),
         SoSettings);
@@ -273,7 +268,7 @@ void ASessionManager::OnCreateSessionComplete(FName InSessionName, bool bWasSucc
     ensure(SessionName == InSessionName);
     if (bWasSuccessful) {
         Print("Session ", InSessionName, " Created successfully.");
-        SeState = EState::CreateSession;
+        MeState = EState::CreateSession;
         StartSession();
     }
     else {
@@ -297,13 +292,13 @@ void ASessionManager::ServerStartSession()
         PrintW("Not a dedicated server - skipping server registration");
         return;
     }
-    if (SeState != EState::CreateSession) {
-        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::CreateSession);
+    if (MeState != EState::CreateSession) {
+        PrintW("Incorrect State: ", (int)MeState, " != ", (int)EState::CreateSession);
         return;
     }
     ensure(SsSessionName == SessionName);
 
-    if (GetWorld() && AROSS::InitializeReady(GetWorld()))
+    if (GetWorld() && UROSS::InitializeReady(GetWorld()))
     {
         SetupRoss();
     }
@@ -314,10 +309,8 @@ void ASessionManager::ServerStartSession()
         MoTrackSubsystemReady.Slingshot(GetWorld(), "StartSession");
         return;
     }
-    RossPtr = AROSS::GetRossPtr();
-    GET(Ross);
 
-    auto LoResultPtr = Ross.GetSessions().ExeServerStartSession(
+    auto LoResultPtr = GetROSS().GetSessions().ExeServerStartSession(
         FOnStartSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnStartSessionComplete),
         SoSettings);
 }
@@ -328,15 +321,12 @@ void ASessionManager::P2PStartSession()
         PrintW("P2P, not a dedicated server");
         return;
     }
-    if (SeState != EState::CreateSession) {
-        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::CreateSession);
+    if (MeState != EState::CreateSession) {
+        PrintW("Incorrect State: ", (int)MeState, " != ", (int)EState::CreateSession);
         return;
     }
 
-    RossPtr = AROSS::GetRossPtr();
-    GET(Ross);
-
-    auto LoResultPtr = Ross.GetSessions().ExeServerStartSession(
+    auto LoResultPtr = GetROSS().GetSessions().ExeServerStartSession(
         FOnStartSessionCompleteDelegate::CreateUObject(this, &ASessionManager::OnStartSessionComplete),
         SoSettings);
 
@@ -359,7 +349,7 @@ void ASessionManager::OnStartSessionComplete(FName InSessionName, bool bWasSucce
     ensure(SessionName == InSessionName);
     if (bWasSuccessful) {
         Print("Session ", InSessionName, " started successfully.");
-        SeState = EState::StartSession;
+        MeState = EState::StartSession;
         ServerTravelListen();
     }
     else {
@@ -370,24 +360,23 @@ void ASessionManager::OnStartSessionComplete(FName InSessionName, bool bWasSucce
 void ASessionManager::ServerTravelListen(const FString& FsMapPath, const FString& FsModePath)
 {
     PrintStart()
-    if (SeState != EState::StartSession) {
-        PrintW("Incorrect State: ", (int)SeState, " != ", (int)EState::StartSession);
+    if (MeState != EState::StartSession) {
+        PrintW("Incorrect State: ", (int)MeState, " != ", (int)EState::StartSession);
         return;
     }
     ensure(SsSessionName == SessionName);
 
-    GET(Ross);
-    Ross.GetSessions().ExeServerTravelToMapAndMode(ASessionManager::SoSettings);
-    SeState = EState::ServerTravelListen;
+    GetROSS().GetSessions().ExeServerTravelToMapAndMode(ASessionManager::SoSettings);
+    MeState = EState::ServerTravelListen;
 }
 
 void ASessionManager::ServerTravelJoin(const FString& FsMapPath, const FString& FsModePath)
 {
     PrintStart()
-    if (SeState != EState::StartSession) {
+    if (MeState != EState::StartSession) {
         return;
     }
-    SeState = EState::ServerTravelListen;
+    MeState = EState::ServerTravelListen;
     ensure(SsSessionName == SessionName);
 
     if (AGameModeBase* GM = GetWorld()->GetAuthGameMode())
@@ -402,7 +391,6 @@ void ASessionManager::ServerTravelJoin(const FString& FsMapPath, const FString& 
         GetGameConfig().SetModePath(FsModePath);
 
     GET(LoWorld, GetWorld());
-    GET(Ross);
     auto LsPort = FString::FromInt(GetGameConfig().MnGamePort);
     auto LsTravel = FString::Printf(TEXT("%s?game=%s"), *GetGameConfig().GetMapPath(), *GetGameConfig().GetModePath());
     if (LsTravel == SsTravel)
@@ -432,7 +420,6 @@ void ASessionManager::ServerEndSession()
 
 void ASessionManager::P2PEndSession()
 {
-    GET(Ross);
     GET(LoWorld, GetWorld());
     GET(LoPC, LoWorld.GetFirstPlayerController());
 
@@ -441,7 +428,7 @@ void ASessionManager::P2PEndSession()
         auto SessionInterface = IOnlineSubsystem::Get()->GetSessionInterface();
         if (SessionInterface.IsValid()) {
             SessionInterface->DestroySession(*ASessionManager::GetSettings().MsSessionName);
-            SeState = EState::None;
+            MeState = EState::None;
         }
     }
 }
@@ -643,10 +630,22 @@ void ASessionManager::OnEndSessionComplete(FName InSessionName, bool bWasSuccess
 void ASessionManager::SearchSessions()
 {
     PrintStart();
-    GET(Ross);
-    Ross.GetSessions().SearchSessions();
+    GetROSS().GetSessions().SearchSessions();
 }
 
+const UROSS& ASessionManager::GetROSS() const
+{
+    GET(GI, GetGameInstance());
+    GET(Ross, GI.GetSubsystem<UROSS>());
+    return Ross;
+}
+
+UROSS& ASessionManager::GetROSS()
+{
+    GET(GI, GetGameInstance());
+    GET(Ross, GI.GetSubsystem<UROSS>());
+    return Ross;
+}
 
 int32 ASessionManager::GetNumPlayers() const
 {

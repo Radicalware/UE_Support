@@ -13,7 +13,8 @@ void URpConfig::BeginPlay()
 
 void URpConfig::Setup()
 {
-    if (!GetWorld())
+    auto LoWorldPtr = GetOuterWorld();
+    if (!ensure(LoWorldPtr))
         return;
     auto& SoWorld = GetNewWorld();
     if (SoWorld.GetNetMode() == NM_DedicatedServer) {
@@ -25,7 +26,7 @@ void URpConfig::Setup()
         LocalUserNum =  LoLocalPlayer.GetControllerId();
     }
 
-    MoOnlineSubsytemPtr = Online::GetSubsystem(GetWorld());
+    MoOnlineSubsytemPtr = Online::GetSubsystem(LoWorldPtr);
     GET(OSS, MoOnlineSubsytemPtr);
     MoIdentityPtr = OSS.GetIdentityInterface();
     checkf(MoIdentityPtr.IsValid(), TEXT("Expected all online subsystems to implement the identity interface."));
@@ -41,7 +42,7 @@ void URpConfig::Setup()
 
 UWorld* URpConfig::GetNewWorldPtr()
 {
-    auto LoNewWorldPtr = GetWorld();
+    auto LoNewWorldPtr = GetOuterWorld();
     if (LoNewWorldPtr)
         SoWorldPtr = LoNewWorldPtr;
     ensure(SoWorldPtr);
@@ -113,4 +114,14 @@ const FUniqueNetIdPtr& URpConfig::GetNetUserID() const
     if (!MoUserIDPtr || !MoUserIDPtr.IsValid())
         throw BBB("No valid pointer!!");
     return MoUserIDPtr;
+}
+
+UWorld* URpConfig::GetOuterWorld()
+{
+    if (const UGameInstanceSubsystem* Subsystem = GetTypedOuter<UGameInstanceSubsystem>())
+    {
+        if (UGameInstance* GI = Subsystem->GetGameInstance())
+            return GI->GetWorld();
+    }
+    return nullptr;
 }

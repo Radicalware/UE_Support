@@ -32,7 +32,7 @@ void URpSessions::BeginPlay()
 // ExecuteSessionsFindSessions
 TSharedPtr<TNetResult<FOnlineSessionSearch>> URpSessions::GetSessions(FVVDelegate&& FoDelegate, int32 FnMaxResults)
 {
-    auto& OSS = AROSS::GetSubsystem();
+    auto& OSS = UROSS::GetSubsystem();
     auto Session = GetSessionPtr(OSS);
 
     auto Result = MakeThreadPtr(TNetResult<FOnlineSessionSearch>);
@@ -40,8 +40,15 @@ TSharedPtr<TNetResult<FOnlineSessionSearch>> URpSessions::GetSessions(FVVDelegat
 
     MoSessionResultsPtr = MakeShared<FOnlineSessionSearch>();
     auto& LoSearch = *MoSessionResultsPtr.Get();
-    LoSearch.QuerySettings.Set(SEARCH_DEDICATED_ONLY, true, EOnlineComparisonOp::Equals);
-    LoSearch.bIsLanQuery = false;
+    if (OSS.IsDedicated())
+    {
+        LoSearch.QuerySettings.Set(SEARCH_DEDICATED_ONLY, true, EOnlineComparisonOp::Equals);
+        LoSearch.bIsLanQuery = false;
+    }
+    else {
+        LoSearch.QuerySettings.Set(SEARCH_DEDICATED_ONLY, false, EOnlineComparisonOp::Equals);
+        LoSearch.bIsLanQuery = true;
+    }
     LoSearch.MaxSearchResults = FnMaxResults;
 
     auto CallbackHandle = MakeShared<FDelegateHandle>();
@@ -102,7 +109,9 @@ TSharedPtr<TNetResult<FOnlineSessionSearch>> URpSessions::GetSessions(FVVDelegat
 
 void URpSessions::SearchSessions(int32 FnMaxResults)
 {
-    The.GetSessions(FVVDelegate::CreateUObject(this, &URpSessions::OnSearchSessionsComplete), FnMaxResults);
+    The.GetSessions(
+        FVVDelegate::CreateUObject(this, &URpSessions::OnSearchSessionsComplete), 
+        FnMaxResults);
 }
 
 void URpSessions::OnSearchSessionsComplete()
@@ -347,7 +356,7 @@ sp<TNetResult<>> URpSessions::ExeServerTravelToMapAndMode(const FOnlineSessionSe
 {
     auto& OSS = GetIOnlineSubsytem();
     auto Session = GetSessionPtr(OSS);
-    GET(LoWorld, GetWorld());
+    GET(LoWorld, GetOuterWorld());
     GET(LoOnlineSub, IOnlineSubsystem::Get());
     GET(LoSessionInterface, LoOnlineSub.GetSessionInterface());
 
@@ -360,7 +369,7 @@ sp<TNetResult<>> URpSessions::ExeServerTravelToMapAndMode(const FOnlineSessionSe
     ensure(FoSettings.Get(TEXT("PORT"), LnPort));
     ensure(LnPort > 0);
 
-    auto LsPlayerName = GetWorld()->GetFirstPlayerController()->GetPlayerState<APlayerState>()->GetPlayerName();
+    auto LsPlayerName = GetOuterWorld()->GetFirstPlayerController()->GetPlayerState<APlayerState>()->GetPlayerName();
 
     Print("\nMap: ", LsMapPath, "\n GameMode: ", LsModePath, "\n Port: ", LnPort);
     FString TravelURL = FString::Printf(TEXT("%s?listen&Player=%s&Game=%s"), *LsMapPath, *LsPlayerName, *LsModePath);
@@ -573,7 +582,7 @@ sp<TNetResult<>> URpSessions::ExeJoinSession(
                 // @note: Not all subsystems require this, but after we join the session, now connect to the game server.
                 FString ConnectInfo;
                 Session->GetResolvedConnectString(SessionName, ConnectInfo);
-                GEngine->SetClientTravel(this->GetWorld(), *ConnectInfo, TRAVEL_Absolute);
+                GEngine->SetClientTravel(this->GetOuterWorld(), *ConnectInfo, TRAVEL_Absolute);
 
                 // Return the results.
                 Result.OnResult(true, TEXT(""));
@@ -658,7 +667,7 @@ sp<TNetResult<>> URpSessions::ExeJoinSessionWithParty(
             }
 
             // Get the online subsystem.
-            auto CallbackOSS = Online::GetSubsystem(this->GetWorld());
+            auto CallbackOSS = Online::GetSubsystem(this->GetOuterWorld());
             if (CallbackOSS == nullptr)
             {
                 Result.OnResult(false, TEXT("Online subsystem is not available."));
@@ -698,7 +707,7 @@ sp<TNetResult<>> URpSessions::ExeJoinSessionWithParty(
                 // Just join the game server - there's no party.
                 FString ConnectInfo;
                 Session->GetResolvedConnectString(SessionName, ConnectInfo);
-                GEngine->SetClientTravel(this->GetWorld(), *ConnectInfo, TRAVEL_Absolute);
+                GEngine->SetClientTravel(this->GetOuterWorld(), *ConnectInfo, TRAVEL_Absolute);
                 Result.OnResult(true, TEXT(""));
                 Session->ClearOnJoinSessionCompleteDelegate_Handle(*CallbackHandle);
                 return;
@@ -713,7 +722,7 @@ sp<TNetResult<>> URpSessions::ExeJoinSessionWithParty(
             // @note: Not all subsystems require this, but after we join the session, now connect to the game server.
             FString ConnectInfo;
             Session->GetResolvedConnectString(SessionName, ConnectInfo);
-            GEngine->SetClientTravel(this->GetWorld(), *ConnectInfo, TRAVEL_Absolute);
+            GEngine->SetClientTravel(this->GetOuterWorld(), *ConnectInfo, TRAVEL_Absolute);
 
             // Return the results.
             Result.OnResult(true, TEXT(""));
@@ -733,7 +742,7 @@ sp<TNetResult<>> URpSessions::ExeJoinSessionWithParty(
 
 void URpSessions::ExeOpenInviteUI(FName SessionName)
 {
-    GET(OSS, Online::GetSubsystem(this->GetWorld()));
+    GET(OSS, Online::GetSubsystem(this->GetOuterWorld()));
     // Get the external UI interface, if the online subsystem supports it.
     auto ExternalUI = OSS.GetExternalUIInterface();
     if (!ExternalUI.IsValid())
@@ -745,5 +754,5 @@ void URpSessions::ExeOpenInviteUI(FName SessionName)
 
 void URpSessions::ExeReturnToMainMenu()
 {
-    GEngine->SetClientTravel(this->GetWorld(), TEXT("/Game/MainMap"), TRAVEL_Absolute);
+    GEngine->SetClientTravel(this->GetOuterWorld(), TEXT("/Game/MainMap"), TRAVEL_Absolute);
 }
