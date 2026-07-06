@@ -1,8 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Access/XF.h" // Assuming PrintW or related helpers live here
-#include "Access/Macros.h"
+#include "Access/General.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Templates/SharedPointer.h"
 #include "Interfaces/OnlineSessionDelegates.h"
@@ -96,13 +95,18 @@ public:
 template<typename R, typename C>
 class TNetResult : public FNetResultBase<C>
 {
-public:
-    using TResultPtr = TNetResultPtr<R>;
-    TResultPtr MoResultPtr;
+    TNetResultPtr<R> MoResultPtr;
 public:
     TNetResult() = default;
 
-    INL bool BxHasResult() const { return MoResultPtr.IsValid(); }
+    INL bool BxHasResult()   const { return MoResultPtr.IsValid(); }
+    INL auto& GetResultPtr() const { return MoResultPtr; }
+    INL auto& GetResult()    const { if(ensure(MoResultPtr.IsValid()) == false) throw BBB("Result is Null"); return *MoResultPtr.Get(); }
+
+    INL auto& GetResultPtr() { return MoResultPtr; }
+    INL auto& GetResult()    { if(ensure(MoResultPtr.IsValid()) == false) throw BBB("Result is Null"); return *MoResultPtr.Get(); }
+
+    INL void SetResult(TNetResultPtr<R> FtResult){ MoResultPtr = MoveTemp(FtResult); }
 
     INL R& Get() const
     {
@@ -126,7 +130,7 @@ public:
     }
 
     template<typename... CA>
-    INL void OnReturnResult(bool FbWasSuccessful, TResultPtr FtResult, const FString& FsError = FString(), CA&&... Args)
+    INL void OnReturnResult(bool FbWasSuccessful, TNetResultPtr<R> FtResult, const FString& FsError = FString(), CA&&... Args)
     {
         The.ThrowDuplicateCallback(FbWasSuccessful, FsError);
         if (FtResult.IsValid())
@@ -135,14 +139,20 @@ public:
         The.ExecuteCallback(Forward<CA>(Args)...);
     }
 
+    template<typename... CA>
+    INL void OnReturnResult(bool FbWasSuccessful, sp<TNetResult<R, C>> FtResult, const FString& FsError = FString(), CA&&... Args)
+    {
+        OnReturnResult(FbWasSuccessful, FtResult.Get()->GetResultPtr(), FsError, Forward<CA>(Args)...);
+    }
+
     // Convenience overload: raw pointer for UObject types
     template<typename... CA>
     INL void OnReturnResult(bool FbWasSuccessful, R* RawPtr, const FString& FsError = FString(), CA&&... Args) requires CIsUObject<R>
     {
-        TResultPtr TempPtr;
+        TNetResultPtr<R> TempPtr;
         if (RawPtr)
         {
-            TempPtr = TResultPtr(RawPtr);
+            TempPtr = TNetResultPtr<R>(RawPtr);
         }
         OnReturnResult(FbWasSuccessful, MoveTemp(TempPtr), FsError, Forward<CA>(Args)...);
     }
@@ -150,8 +160,9 @@ public:
     template<typename... CA>
     INL void OnReturnResult(bool FbWasSuccessful, std::nullptr_t /*EmptyPtr*/, const FString& FsError = FString(), CA&&... Args)
     {
-        TResultPtr NullPtr{};
+        TNetResultPtr<R> NullPtr{};
         OnReturnResult(FbWasSuccessful, MoveTemp(NullPtr), FsError, Forward<CA>(Args)...);
     }
 };
 
+ 

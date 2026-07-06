@@ -131,37 +131,37 @@ void ASessionManager::SetSessionSettings(UWorld* FoWorldPtr, const FGameConfig& 
 
     SoSettings.bUsesStats = false; // TODO: switch to true for database updates
 
-    const bool bPersistentWorld = FParse::Param(FCommandLine::Get(), TEXT("PersistentWorld"));
+    const bool bPersistentWorld = FParse::Param(FCommandLine::Get(), TEXT("InstanceWorld")) == false;
     Print("Persistent World: ", bPersistentWorld);
     if (bPersistentWorld)
     {
         SoSettings.bAllowJoinInProgress = true;
         SoSettings.bAllowInvites = true;
-        SoSettings.bShouldAdvertise = true;
     }
     else { // MTT, Sit-N-Go, Spins
         SoSettings.bAllowJoinInProgress = false; // Good prevent mid-match joins
         SoSettings.bAllowInvites = false; // Good keep control centralized
-        SoSettings.bShouldAdvertise = true;  // Must be true for session to show up in searches (lobby mode)
     }
 
     if (bUsingDedicatedServer) 
     {
         SoSettings.bIsDedicated = true;
         SoSettings.bIsLANMatch = false;
-        SoSettings.bUsesPresence = false; // False for Dedicated Servers b/c you can't show you are hosting if no player hosts
+        SoSettings.bUsesPresence = true;
+        SoSettings.bAllowJoinViaPresence = true;
         SoSettings.bUseLobbiesIfAvailable = false; // Use server browser path, not lobbies, for dedicated servers
     }
     else
     {
         SoSettings.bIsDedicated = false;
         SoSettings.bIsLANMatch = true;
-        SoSettings.bUsesPresence = true;
+        SoSettings.bUsesPresence = false;
+        SoSettings.bAllowJoinViaPresence = false;
         SoSettings.bUseLobbiesIfAvailable = true;
 
     }
 
-    SoSettings.bAllowJoinViaPresence = true; // so you can join friends
+    SoSettings.bShouldAdvertise = true;
     SoSettings.bAllowJoinViaPresenceFriendsOnly = false; // so you can ONLY join friends
     SoSettings.bAntiCheatProtected = true;
 

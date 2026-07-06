@@ -18,7 +18,7 @@ public:
     URpSessions();
     IOnlineSessionPtr GetSessionPtr(const IOnlineSubsystem& OSS) const;
     sp<TMap<FString, FOnlineSessionSearchResult>> MmSessionSearchResultsPtr;
-    sp<FOnlineSessionSearch> MoSessionResultsPtr;
+    sp<TNetResult<FOnlineSessionSearch>> MoSessionResultsPtr;
 protected:
     virtual void BeginPlay() override;
 public:

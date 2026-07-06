@@ -14,7 +14,7 @@
 URpSessions::URpSessions()
 {
     MmSessionSearchResultsPtr = MakeShared<TMap<FString, FOnlineSessionSearchResult>>();
-    MoSessionResultsPtr = MakeShared<FOnlineSessionSearch>();
+    MoSessionResultsPtr = MakeShared<TNetResult<FOnlineSessionSearch>>();
 }
 
 IOnlineSessionPtr URpSessions::GetSessionPtr(const IOnlineSubsystem& OSS) const
@@ -33,43 +33,54 @@ void URpSessions::BeginPlay()
 TSharedPtr<TNetResult<FOnlineSessionSearch>> URpSessions::GetSessions(FVVDelegate&& FoDelegate, int32 FnMaxResults)
 {
     auto& OSS = UROSS::GetSubsystem();
-    auto Session = GetSessionPtr(OSS);
+    auto SessionPtr = GetSessionPtr(OSS);
+    GET(Session);
 
-    auto Result = MakeThreadPtr(TNetResult<FOnlineSessionSearch>);
-    Result->SetExternalCallback(FoDelegate);
+    GET(MoSessionResults);
+    MoSessionResults.SetExternalCallback(FoDelegate);
 
-    MoSessionResultsPtr = MakeShared<FOnlineSessionSearch>();
-    auto& LoSearch = *MoSessionResultsPtr.Get();
+    sp<FOnlineSessionSearch> LoSearchSettingsPtr = MakeThreadPtr(FOnlineSessionSearch);
+    MoSessionResults.SetResult(LoSearchSettingsPtr);
+    GET(LoSearchSettings);
+
     if (OSS.IsDedicated())
     {
-        LoSearch.QuerySettings.Set(SEARCH_DEDICATED_ONLY, true, EOnlineComparisonOp::Equals);
-        LoSearch.bIsLanQuery = false;
+        LoSearchSettings.QuerySettings.Set(SEARCH_DEDICATED_ONLY, true, EOnlineComparisonOp::Equals);
+        LoSearchSettings.bIsLanQuery = false;
     }
     else {
-        LoSearch.QuerySettings.Set(SEARCH_DEDICATED_ONLY, false, EOnlineComparisonOp::Equals);
-        LoSearch.bIsLanQuery = true;
+        LoSearchSettings.QuerySettings.Set(SEARCH_DEDICATED_ONLY, false, EOnlineComparisonOp::Equals);
+        LoSearchSettings.bIsLanQuery = true;
     }
-    LoSearch.MaxSearchResults = FnMaxResults;
+    LoSearchSettings.MaxSearchResults = FnMaxResults;
 
     auto CallbackHandle = MakeShared<FDelegateHandle>();
     *CallbackHandle =
-        Session->AddOnFindSessionsCompleteDelegate_Handle(FOnFindSessionsCompleteDelegate::CreateWeakLambda(
+        Session.AddOnFindSessionsCompleteDelegate_Handle(FOnFindSessionsCompleteDelegate::CreateWeakLambda(
             this,
-            [this, Session, CallbackHandle, ResultWk = TWeakPtr<TNetResult<FOnlineSessionSearch>>(Result)]
+            [this, SessionPtr, CallbackHandle, ResultWk = TWeakPtr<TNetResult<FOnlineSessionSearch>>(MoSessionResultsPtr)]
             (bool bCallbackWasSuccessful)
             {
-                if (!bCallbackWasSuccessful)
+                GET(Session);
+                if (!ResultWk.IsValid())
                 {
-                    GetWeakSafe(Result);
-                    Result.OnReturnResult(false, nullptr, TEXT("Find sessions operation failed."));
-                    Session->ClearOnFindSessionsCompleteDelegate_Handle(*CallbackHandle);
+                    PrintW("Result pointer is no longer valid.");
+                    Session.ClearOnFindSessionsCompleteDelegate_Handle(*CallbackHandle);
                     return;
                 }
-                else {
-                    Print("Found Session Count: ", MoSessionResultsPtr->SearchResults.Num(), " <> ", Session->GetNumSessions());
-                }
+                GetWeakSafe(Result);
+                Print("Found Session Count: ", Result.GetResult().SearchResults.Num(), " <> ", Session.GetNumSessions());
 
-                auto& LoSearch = *this->MoSessionResultsPtr.Get();
+                if (!bCallbackWasSuccessful)
+                {
+                    Result.OnReturnResult(false, nullptr, TEXT("Find sessions operation failed."));
+                    Session.ClearOnFindSessionsCompleteDelegate_Handle(*CallbackHandle);
+                    return;
+                }
+                else
+                    SessionPtr->GetNumSessions();
+
+                auto& LoSearch = Result.GetResult();
                 // Check if this callback is for us.
                 if (LoSearch.SearchState != EOnlineAsyncTaskState::Failed &&
                     LoSearch.SearchState != EOnlineAsyncTaskState::Done)
@@ -77,14 +88,11 @@ TSharedPtr<TNetResult<FOnlineSessionSearch>> URpSessions::GetSessions(FVVDelegat
                     // This callback isn't for our call.
                     return;
                 }
-
-                GetWeakSafe(Result);
-
                 // Return if the read failed.
                 if (LoSearch.SearchState == EOnlineAsyncTaskState::Failed)
                 {
-                    Result.OnReturnResult(false, nullptr, TEXT("Session search failed."));
-                    Session->ClearOnFindSessionsCompleteDelegate_Handle(*CallbackHandle);
+                    Result.OnReturnResult(false, MoSessionResultsPtr, TEXT("Session search failed."));
+                    Session.ClearOnFindSessionsCompleteDelegate_Handle(*CallbackHandle);
                     return;
                 }
 
@@ -95,27 +103,28 @@ TSharedPtr<TNetResult<FOnlineSessionSearch>> URpSessions::GetSessions(FVVDelegat
                 }
 
                 Result.OnReturnResult(true, MoSessionResultsPtr, TEXT(""));
-                Session->ClearOnFindSessionsCompleteDelegate_Handle(*CallbackHandle);
+                Session.ClearOnFindSessionsCompleteDelegate_Handle(*CallbackHandle);
             }));
 
-    if (!Session->FindSessions(this->LocalUserNum, MoSessionResultsPtr.ToSharedRef()))
+    if (!Session.FindSessions(LocalUserNum, LoSearchSettingsPtr.ToSharedRef()))
     {
-        Result->OnReturnResult(false, nullptr, TEXT("FindSessions call failed to start."));
-        Session->ClearOnFindSessionsCompleteDelegate_Handle(*CallbackHandle);
+        MoSessionResultsPtr->OnReturnResult(false, MoSessionResultsPtr, TEXT("FindSessions call failed to start."));
+        Session.ClearOnFindSessionsCompleteDelegate_Handle(*CallbackHandle);
     }
 
-    return Result;
+    return MoSessionResultsPtr;
 }
 
 void URpSessions::SearchSessions(int32 FnMaxResults)
 {
-    The.GetSessions(
+    MoSessionResultsPtr = The.GetSessions(
         FVVDelegate::CreateUObject(this, &URpSessions::OnSearchSessionsComplete), 
         FnMaxResults);
 }
 
 void URpSessions::OnSearchSessionsComplete()
 {
+    PrintStart();
     if (!MoSessionResultsPtr.IsValid())
     {
         PrintW("Session search failed");
@@ -123,7 +132,7 @@ void URpSessions::OnSearchSessionsComplete()
         return;
     }
 
-    auto& LoSessions = *MoSessionResultsPtr;
+    const auto& LoSessions = MoSessionResultsPtr->GetResult();
 
     Print("\n",
         " >> Session Count:    ", LoSessions.SearchResults.Num(), "\n",
