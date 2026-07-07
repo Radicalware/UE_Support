@@ -207,9 +207,3 @@ void XF::ThrowNulls(const F* First, const R*... Rest)
     ThrowNulls(First);
     ThrowNulls(Rest...);
 }
-
-FORCEINLINE FString operator+(wchar_t* Left, const FString& Right)
-{
-    auto LsLeft = FString(Left);
-    return LsLeft + Right;
-}

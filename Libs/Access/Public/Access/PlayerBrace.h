@@ -47,12 +47,12 @@ inline FPlayerBrace<P, C, S>::FPlayerBrace(S* FoStatePtr):
 MoStatePtr(FoStatePtr)
 {
     ensure(MoStatePtr);
-    MoPawnPtr = MoStatePtr->GetPawn<P>();
+    MoPawnPtr = MoStatePtr->template GetPawn<P>();
     auto LoOwningController = MoStatePtr->GetOwningController();
     if (LoOwningController)
     MoControllerPtr = Cast<C>(LoOwningController);
     if (!MoControllerPtr && MoPawnPtr)
-    MoControllerPtr = MoPawnPtr->GetController<C>();
+    MoControllerPtr = MoPawnPtr->template GetController<C>();
 }
 
 template<typename P, typename C, typename S>
@@ -180,5 +180,4 @@ inline void FPlayerBrace<P, C, S>::SetNextLink(FPlayerBrace* FoNextPtr)
 {
     MoNextBracePtr = FoNextPtr;
 }
-
 

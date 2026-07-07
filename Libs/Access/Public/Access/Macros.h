@@ -163,14 +163,14 @@ extern THEGAME_API FLogCategoryLocalLog LocalLog;
 #define SET2(VD,__VARNAME__,__PARAM__) \
  __VARNAME__##Ptr = __PARAM__; \
  if(!(__VARNAME__##Ptr)) { \
-    throw BBB("Null Object Thrown, \"" # __PARAM__ "\" In Class \"" __CLASS__ "\""); \
+    throw BBB("Null Object Thrown, \"" # __PARAM__ "\" In Class \"", __CLASS__, "\""); \
  } \
  auto& __VARNAME__ = *__VARNAME__##Ptr;
 
 #define SET3(VD,__VARNAME__,__MEMBER_NAME__,__PARAM__) \
  __MEMBER_NAME__ = __PARAM__; \
  if(!(__MEMBER_NAME__)) { \
-    throw BBB("Null Object Thrown, \"" ## #__PARAM__ "\" In Class \"" __CLASS__ "\""); \
+    throw BBB("Null Object Thrown, \"" #__PARAM__ "\" In Class \"", __CLASS__, "\""); \
  } \
  auto& __VARNAME__ = *__MEMBER_NAME__;
 
@@ -186,7 +186,7 @@ auto& __VARNAME__ = *__MEMBER_NAME__;
 
 #define GetRef1(VD,__VARNAME__) \
  if(!(__VARNAME__##Ptr != nullptr)) { \
-    throw BBB("Null Object Thrown, \"" #__VARNAME__ "Ptr\" In Class \"" __CLASS__ "\""); \
+    throw BBB("Null Object Thrown, \"" #__VARNAME__ "Ptr\" In Class \"", __CLASS__, "\""); \
  } \
  auto& __VARNAME__ = *__VARNAME__##Ptr;
 
@@ -194,7 +194,7 @@ auto& __VARNAME__ = *__MEMBER_NAME__;
 #define GetRef2(VD,__VARNAME__,__PARAM__) \
  auto __VARNAME__##Ptr = __PARAM__; \
  if(!ensure(__VARNAME__##Ptr != nullptr)) { \
-    throw BBB("Null Object Thrown, \"" #__PARAM__ "\" In Class \"" __CLASS__ "\""); \
+    throw BBB("Null Object Thrown, \"" #__PARAM__ "\" In Class \"", __CLASS__, "\""); \
  } \
  auto& __VARNAME__ = *__VARNAME__##Ptr;
 
@@ -220,7 +220,7 @@ auto& __VARNAME__ = *__MEMBER_NAME__;
 // Same as GetCRef2(VarName, PtrVarName);
 #define GetCRef1(VD,__VARNAME__) \
  if(!(__VARNAME__##Ptr != nullptr)) { \
-    throw BBB("Null Object Thrown, \"" #__VARNAME__ "Ptr\" In Class \"" __CLASS__ "\""); \
+    throw BBB("Null Object Thrown, \"" #__VARNAME__ "Ptr\" In Class \"", __CLASS__, "\""); \
  } \
  const auto& __VARNAME__ = *__VARNAME__##Ptr;
 
@@ -228,7 +228,7 @@ auto& __VARNAME__ = *__MEMBER_NAME__;
 #define GetCRef2(VD,__VARNAME__,__PARAM__) \
  const auto __VARNAME__##Ptr = __PARAM__; \
  if(!ensure(__VARNAME__##Ptr != nullptr)) { \
-    throw BBB("Null Object Thrown, \"" #__PARAM__ "\" In Class \"" __CLASS__ "\""); \
+    throw BBB("Null Object Thrown, \"" #__PARAM__ "\" In Class \"", __CLASS__, "\""); \
  } \
  const auto& __VARNAME__ = *__VARNAME__##Ptr;
 
@@ -263,14 +263,14 @@ auto& __VARNAME__ = *__MEMBER_NAME__;
 //1 Get reference
 #define GetWeak1(VD,__VARNAME__) \
     if(__VARNAME__##Wk == nullptr || __VARNAME__##Wk.IsValid() == false) { \
-        throw BBB("Null Object Thrown, \"" #__VARNAME__ "Wk\" In Class \"" __CLASS__ "\""); \
+        throw BBB("Null Object Thrown, \"" #__VARNAME__ "Wk\" In Class \"", __CLASS__, "\""); \
     } \
     auto& __VARNAME__ = *__VARNAME__##Wk.Pin().Get();
 //2 Args throws exception
 #define GetWeak2(VD,__VARNAME__,__PARAM__) \
     auto __VARNAME__##Wk = __PARAM__; \
     if(!ensure(__VARNAME__##Wk != nullptr && __VARNAME__##Wk.IsValid())) { \
-        throw BBB("Null Object Thrown, \"" #__PARAM__ "\" In Class \"" __CLASS__ "\""); \
+        throw BBB("Null Object Thrown, \"" #__PARAM__ "\" In Class \"", __CLASS__, "\""); \
     } \
     auto& __VARNAME__ = *__VARNAME__##Wk.Pin().Get();
 
@@ -471,7 +471,7 @@ auto& __VARNAME__ = *__MEMBER_NAME__;
 // You InitNetSource consider adding a2nd argument (lambda) that res-ets values if needed
 
 // ErrorLooperPtr = CreateDefaultSubobject<UTracker>("ErrorLooper");
-// NullEnsure(ErrorLooperPtr); \
+// NullEnsure(ErrorLooperPtr);
 
 inline bool UsingEditor()
 {
@@ -482,8 +482,8 @@ inline bool UsingEditor()
 #endif
 }
 
-// SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; \
-// ErrorLooperPtr = GetWorld()->SpawnActor<ATracker>(SpawnParameters); \
+// SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+// ErrorLooperPtr = GetWorld()->SpawnActor<ATracker>(SpawnParameters);
 
 
 #define InitTracker(__TRACKER_NAME__) \
