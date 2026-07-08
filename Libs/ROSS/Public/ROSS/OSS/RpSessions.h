@@ -34,6 +34,7 @@ public:
     sp<TNetResult<void, FOnStartSessionCompleteDelegate>>  ExeServerStartSession(FOnStartSessionCompleteDelegate&& FoDelegate, const FRossSessionSettings& FoSessionSettings);
     sp<TNetResult<>> ExeServerEndSession(FName SessionName);
     sp<TNetResult<>> ExeServerTravelToMapAndMode(const FOnlineSessionSettings& FoSettings);
+    bool RefreshHostSessionPort(FName SessionName, UWorld* World = nullptr);
     sp<TNetResult<>> ExeServerDestroySession(FName SessionName);
     sp<TNetResult<>> ExeServerRegisterPlayer(FName SessionName, const FUniqueNetIdRepl& PlayerId, bool bWasFromInvite);
     sp<TNetResult<>> ExeServerUnregisterPlayer(FName SessionName, const FUniqueNetIdRepl& PlayerId);
