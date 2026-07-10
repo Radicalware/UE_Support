@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Access/General.h"
-#include "Ross/Util/TDelegate.h"
+#include "ROSS/Util/TDelegate.h"
 #include "Components/SceneComponent.h"
 #include "ROSS/Util/NetResult.h"
 #include "OnlineSubsystemUtils.h"

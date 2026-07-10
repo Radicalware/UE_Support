@@ -42,7 +42,8 @@ protected:
     INL void ThrowDuplicateCallback(bool bSuccess, const FString& ErrorMessage)
     {
         if (bDidCallback) {
-            throw BBB("Ran Callback Already!!");
+            PrintW("Ignoring duplicate callback: ", ErrorMessage);
+            return;
         }
         bDidCallback = true;
         MbWasSuccessful = bSuccess;
@@ -59,9 +60,12 @@ protected:
     template<typename... CA>
     INL void ExecuteCallback(CA&&... Args)
     {
-        MoCallback.Execute(Forward<CA>(Args)...);
-        // bDidCallback = false; // you should NOT be calling OnResult multiple times
-        MoCallback.Unbind();
+        if (MoCallback.IsBound())
+        {
+            MoCallback.Execute(Forward<CA>(Args)...);
+            // bDidCallback = false; // you should NOT be calling OnResult multiple times
+            MoCallback.Unbind();
+        }
     }
 
 public:
@@ -164,5 +168,3 @@ public:
         OnReturnResult(FbWasSuccessful, MoveTemp(NullPtr), FsError, Forward<CA>(Args)...);
     }
 };
-
- 

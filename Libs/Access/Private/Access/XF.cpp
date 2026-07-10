@@ -80,12 +80,12 @@ int32 XF::StringToInt(const FString& FsStr)
 
 FString XF::FindReplace(const FString& FsStr, const FString& FsToFind, const FString& FsToReplace)
 {
-    const std::wstring LsInput(*FsStr);
-    const std::wstring LsPattern = L"(" + std::wstring(*FsToFind) + L")";
-    const std::wstring LsReplacement(*FsToReplace);
-    const std::wregex  LoRegex(LsPattern);
-    const std::wstring Output = std::regex_replace(LsInput, LoRegex, LsReplacement);
-    return FString(Output.c_str());
+    const std::string LsInput(TCHAR_TO_UTF8(*FsStr));
+    const std::string LsPattern = "(" + std::string(TCHAR_TO_UTF8(*FsToFind)) + ")";
+    const std::string LsReplacement(TCHAR_TO_UTF8(*FsToReplace));
+    const std::regex LoRegex(LsPattern);
+    const std::string Output = std::regex_replace(LsInput, LoRegex, LsReplacement);
+    return FString(UTF8_TO_TCHAR(Output.c_str()));
 }
 
 FString XF::FindFirstMatch(const FString& FsStr, const FString& FsToFind)
@@ -93,11 +93,11 @@ FString XF::FindFirstMatch(const FString& FsStr, const FString& FsToFind)
     const auto LbHasLeft  = FsToFind.Contains(FString::Chr(L'('));
     const auto LbHasRight = FsToFind.Contains(FString::Chr(L')'));
 
-    const std::wstring Pattern = (LbHasLeft && LbHasRight) ? std::wstring(*FsToFind) : L"(" + std::wstring(*FsToFind) + L")";
-    const std::wregex  LoRegex(Pattern);
-    const std::wstring LsInput(*FsStr);
-    std::wsmatch LoMatch;
+    const std::string Pattern = (LbHasLeft && LbHasRight) ? std::string(TCHAR_TO_UTF8(*FsToFind)) : "(" + std::string(TCHAR_TO_UTF8(*FsToFind)) + ")";
+    const std::regex LoRegex(Pattern);
+    const std::string LsInput(TCHAR_TO_UTF8(*FsStr));
+    std::smatch LoMatch;
     if (std::regex_search(LsInput, LoMatch, LoRegex))
-        return FString(LoMatch[1].str().c_str());
+        return FString(UTF8_TO_TCHAR(LoMatch[1].str().c_str()));
     return FString();
 }

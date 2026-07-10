@@ -6,10 +6,32 @@
 #include "Interfaces/OnlinePartyInterface.h"
 #include "Interfaces/OnlineSessionInterface.h"
 #include "Online/OnlineSessionNames.h"
+#include "Engine/Engine.h"
 
 #include "Online/OnlineSessionNames.h"
 #include "ROSS/Util/NetResult.h"
 #include "ROSS/ROSS.h"
+
+namespace
+{
+    FString GetAdvertisedSessionName(const FOnlineSessionSearchResult& SearchResult)
+    {
+        FString SessionName;
+        if (SearchResult.Session.SessionSettings.Get(TEXT("SESSION_NAME"), SessionName) && !SessionName.IsEmpty())
+            return SessionName;
+
+        if (SearchResult.Session.SessionSettings.Get(TEXT("SessionName"), SessionName) && !SessionName.IsEmpty())
+            return SessionName;
+
+        if (SearchResult.Session.SessionSettings.Get(TEXT("SERVER_NAME"), SessionName) && !SessionName.IsEmpty())
+            return SessionName;
+
+        if (SearchResult.Session.SessionSettings.Get(TEXT("ServerName"), SessionName) && !SessionName.IsEmpty())
+            return SessionName;
+
+        return SearchResult.GetSessionIdStr();
+    }
+}
 
 URpSessions::URpSessions()
 {
@@ -99,7 +121,11 @@ TSharedPtr<TNetResult<FOnlineSessionSearch>> URpSessions::GetSessions(FVVDelegat
                 GET(MmSessionSearchResults);
                 MmSessionSearchResults.Empty();
                 for(auto& SearchResult : LoSearch.SearchResults){
-                    MmSessionSearchResults.Add(SearchResult.GetSessionIdStr(), SearchResult);
+                    const auto SessionName = GetAdvertisedSessionName(SearchResult);
+                    int32 AdvertisedPort = 0;
+                    SearchResult.Session.SessionSettings.Get(TEXT("PORT"), AdvertisedPort);
+                    Print("Caching session: ", SessionName, " Port=", AdvertisedPort);
+                    MmSessionSearchResults.Add(SessionName, SearchResult);
                 }
 
                 Result.OnReturnResult(true, MoSessionResultsPtr, TEXT(""));
@@ -376,18 +402,49 @@ sp<TNetResult<>> URpSessions::ExeServerTravelToMapAndMode(const FOnlineSessionSe
     ensure(FoSettings.Get(TEXT("MAP_PATH"),  LsMapPath));
     ensure(FoSettings.Get(TEXT("MODE_PATH"), LsModePath));
     ensure(FoSettings.Get(TEXT("PORT"), LnPort));
-    ensure(LnPort > 0);
 
     auto LsPlayerName = GetOuterWorld()->GetFirstPlayerController()->GetPlayerState<APlayerState>()->GetPlayerName();
 
     Print("\nMap: ", LsMapPath, "\n GameMode: ", LsModePath, "\n Port: ", LnPort);
-    FString TravelURL = FString::Printf(TEXT("%s?listen&Player=%s&Game=%s"), *LsMapPath, *LsPlayerName, *LsModePath);
+    FString TravelURL = FString::Printf(TEXT("%s?listen?Player=%s?Game=%s"), *LsMapPath, *LsPlayerName, *LsModePath);
     Print("TravelURL: ", TravelURL);
-    bool LbSuccess = LoWorld.ServerTravel(TravelURL);
+    auto* PlayerController = LoWorld.GetFirstPlayerController();
+    bool LbSuccess = PlayerController != nullptr;
+    if (PlayerController)
+        PlayerController->ConsoleCommand(FString::Printf(TEXT("open %s"), *TravelURL));
     if (!LbSuccess)
-        PrintE("ServerTravel failed!");
+        PrintE("Listen travel failed: no local player controller");
 
     return Result;
+}
+
+bool URpSessions::RefreshHostSessionPort(FName SessionName, UWorld* World)
+{
+    auto& OSS = GetIOnlineSubsytem();
+    auto Session = GetSessionPtr(OSS);
+    auto* NamedSession = Session->GetNamedSession(SessionName);
+    if (!NamedSession) return false;
+
+    if (!World)
+        World = GetOuterWorld();
+
+    auto* NetDriver = (World && GEngine) ? GEngine->FindNamedNetDriver(World, NAME_GameNetDriver) : nullptr;
+    if (!NetDriver) return false;
+
+    int32 PortSeparatorIndex = INDEX_NONE;
+    const FString Address = NetDriver->LowLevelGetNetworkNumber();
+    if (!Address.FindLastChar(TEXT(':'), PortSeparatorIndex)) return false;
+
+    const FString PortString = Address.Mid(PortSeparatorIndex + 1);
+    if (!PortString.IsNumeric()) return false;
+
+    const int32 ListenPort = FCString::Atoi(*PortString);
+    if (ListenPort <= 0) return false;
+
+    NamedSession->SessionSettings.Set(TEXT("PORT"), ListenPort, EOnlineDataAdvertisementType::ViaOnlineService);
+    Session->UpdateSession(SessionName, NamedSession->SessionSettings, true);
+    Print("Updated host session advertised port: ", ListenPort);
+    return true;
 }
 
 sp<TNetResult<>> URpSessions::ExeServerDestroySession(FName SessionName)
@@ -535,7 +592,10 @@ sp<TNetResult<>> URpSessions::ExeJoinSession(
         return Result;
     }
     GET(MmSessionSearchResults);
-    GET(SessionSearchResult, MmSessionSearchResults.Find(SearchResult.GetSessionIdStr()));
+    GET(SessionSearchResult, MmSessionSearchResults.Find(GetAdvertisedSessionName(SearchResult)));
+
+    int32 AdvertisedPort = 0;
+    SearchResult.Session.SessionSettings.Get(TEXT("PORT"), AdvertisedPort);
 
     // Register an event so we can receive the outcome.
     auto CallbackHandle = MakeShared<FDelegateHandle>();
@@ -545,6 +605,7 @@ sp<TNetResult<>> URpSessions::ExeJoinSession(
         Session, 
         CallbackHandle, 
         SessionName,
+        AdvertisedPort,
         ResultWk = TWeakPtr<TNetResult<>>(Result)
         ](
             FName CallbackSessionName,
@@ -590,8 +651,39 @@ sp<TNetResult<>> URpSessions::ExeJoinSession(
 
                 // @note: Not all subsystems require this, but after we join the session, now connect to the game server.
                 FString ConnectInfo;
-                Session->GetResolvedConnectString(SessionName, ConnectInfo);
-                GEngine->SetClientTravel(this->GetOuterWorld(), *ConnectInfo, TRAVEL_Absolute);
+                if (!Session->GetResolvedConnectString(SessionName, ConnectInfo) || ConnectInfo.IsEmpty())
+                {
+                    Result.OnResult(false, TEXT("Could not resolve connect string."));
+                    Session->ClearOnJoinSessionCompleteDelegate_Handle(*CallbackHandle);
+                    return;
+                }
+
+                int32 PortSeparatorIndex = INDEX_NONE;
+                if (ConnectInfo.FindLastChar(TEXT(':'), PortSeparatorIndex) && ConnectInfo.Mid(PortSeparatorIndex + 1) == TEXT("0"))
+                {
+                    if (AdvertisedPort <= 0)
+                    {
+                        Result.OnResult(false, TEXT("Resolved and advertised session ports are both zero."));
+                        Session->ClearOnJoinSessionCompleteDelegate_Handle(*CallbackHandle);
+                        return;
+                    }
+
+                    FString Host = ConnectInfo;
+                    Host.LeftInline(PortSeparatorIndex, EAllowShrinking::No);
+                    ConnectInfo = FString::Printf(TEXT("%s:%d"), *Host, AdvertisedPort);
+                }
+
+                auto* World = this->GetOuterWorld();
+                auto* PlayerController = World ? World->GetFirstPlayerController() : nullptr;
+                if (!PlayerController)
+                {
+                    Result.OnResult(false, TEXT("Could not find player controller for client travel."));
+                    Session->ClearOnJoinSessionCompleteDelegate_Handle(*CallbackHandle);
+                    return;
+                }
+
+                Print("Join resolved connect string: ", ConnectInfo);
+                PlayerController->ClientTravel(ConnectInfo, TRAVEL_Absolute);
 
                 // Return the results.
                 Result.OnResult(true, TEXT(""));
