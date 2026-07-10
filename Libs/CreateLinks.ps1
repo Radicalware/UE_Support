@@ -26,22 +26,22 @@ function New-PluginLinks {
     Write-Host "Targ: $GitRepo\Public\$FsPluginName"
 
     $LsPublicPlugin = "$LsSourceDir\Public\$FsPluginName"
-    if(-not (Test-Path $LsPublicPlugin))
-    {
-        New-Item `
-            -ItemType SymbolicLink `
-            -Path    $LsPublicPlugin  `
-            -Target "$GitRepo\Public\$FsPluginName"    
+    if(Test-Path $LsPublicPlugin){
+        Remove-Item -Path $LsPublicPlugin -Force
     }
+    New-Item `
+        -ItemType SymbolicLink `
+        -Path    $LsPublicPlugin  `
+        -Target "$GitRepo\Public\$FsPluginName" 
 
     $LsPrivatePlugin = "$LsSourceDir\Private\$FsPluginName"
-    if(-not (Test-Path $LsPrivatePlugin))
-    {
-        New-Item `
-            -ItemType SymbolicLink `
-            -Path   $LsPrivatePlugin `
-            -Target "$GitRepo\Private\$FsPluginName"
+    if(Test-Path $LsPrivatePlugin){
+        Remove-Item -Path $LsPrivatePlugin -Force
     }
+    New-Item `
+        -ItemType SymbolicLink `
+        -Path   $LsPrivatePlugin `
+        -Target "$GitRepo\Private\$FsPluginName"
 }
 
 Write-Host "-----------------------------------------------------------------"
